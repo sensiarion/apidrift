@@ -1,0 +1,10 @@
+/target
+
+.idea/
+.cursor/
+.vscode/
+
+# Ignore JSON files except test schemas
+*.json
+!tests/**/*.json
+
