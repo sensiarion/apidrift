@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAPI Schema Changes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #fafafa;
+            color: #3b4151;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(90deg, #4990e2 0%, #357abd 100%);
+            color: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 300;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #4990e2;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 300;
+            color: #3b4151;
+        }
+
+        .stat-card.breaking {
+            border-left-color: #f93e3e;
+        }
+
+        .stat-card.breaking .number {
+            color: #f93e3e;
+        }
+
+        .stat-card.warning {
+            border-left-color: #f7981c;
+        }
+
+        .stat-card.warning .number {
+            color: #f7981c;
+        }
+
+        .stat-card.change {
+            border-left-color: #49cc90;
+        }
+
+        .stat-card.change .number {
+            color: #49cc90;
+        }
+
+        .schema-card {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .schema-header {
+            padding: 20px;
+            border-left: 4px solid #4990e2;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .schema-header:hover {
+            background-color: #f5f7fa;
+        }
+
+        .schema-header.breaking {
+            border-left-color: #f93e3e;
+        }
+
+        .schema-header.warning {
+            border-left-color: #f7981c;
+        }
+
+        .schema-header.change {
+            border-left-color: #49cc90;
+        }
+
+        .schema-name {
+            font-size: 1.3rem;
+            font-weight: 500;
+            color: #3b4151;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.breaking {
+            background-color: #f93e3e;
+            color: white;
+        }
+
+        .badge.warning {
+            background-color: #f7981c;
+            color: white;
+        }
+
+        .badge.change {
+            background-color: #49cc90;
+            color: white;
+        }
+
+        .schema-body {
+            padding: 0 20px 20px 20px;
+            display: none;
+        }
+
+        .schema-card.expanded .schema-body {
+            display: block;
+        }
+
+        .difference {
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: #f9fafb;
+            border-radius: 6px;
+            border-left: 3px solid #4990e2;
+        }
+
+        .difference.breaking {
+            border-left-color: #f93e3e;
+            background-color: #fef2f2;
+        }
+
+        .difference.warning {
+            border-left-color: #f7981c;
+            background-color: #fffbeb;
+        }
+
+        .difference.change {
+            border-left-color: #49cc90;
+            background-color: #f0fdf4;
+        }
+
+        .difference-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .difference-description {
+            font-weight: 500;
+            color: #1f2937;
+        }
+
+        .difference-details {
+            margin-left: 20px;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .difference-details li {
+            margin-bottom: 5px;
+            list-style: none;
+        }
+
+        .toggle-icon {
+            transition: transform 0.2s;
+            font-weight: bold;
+            color: #6b7280;
+        }
+
+        .schema-card.expanded .toggle-icon {
+            transform: rotate(90deg);
+        }
+
+        .no-changes {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .no-changes h2 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>OpenAPI Schema Changes</h1>
+            <p>Detailed comparison of schema changes between versions</p>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Changes</h3>
+                <div class="number">{{ data.stats.total_changes }}</div>
+            </div>
+            <div class="stat-card breaking">
+                <h3>Breaking Changes</h3>
+                <div class="number">{{ data.stats.breaking_changes }}</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Warnings</h3>
+                <div class="number">{{ data.stats.warnings }}</div>
+            </div>
+            <div class="stat-card change">
+                <h3>Non-Breaking</h3>
+                <div class="number">{{ data.stats.non_breaking_changes }}</div>
+            </div>
+        </div>
+
+        {% if data.schemas | length > 0 %}
+            <div class="schemas">
+                {% for schema in data.schemas %}
+                <div class="schema-card" onclick="this.classList.toggle('expanded')">
+                    <div class="schema-header {{ schema.change_level_class }}">
+                        <div>
+                            <span class="toggle-icon">▶</span>
+                            <span class="schema-name">{{ schema.name }}</span>
+                        </div>
+                        <span class="badge {{ schema.change_level_class }}">{{ schema.change_level }}</span>
+                    </div>
+                    <div class="schema-body">
+                        {% for diff in schema.differences %}
+                        <div class="difference {{ diff.change_level_class }}">
+                            <div class="difference-header">
+                                <span class="difference-description">{{ diff.description }}</span>
+                                <span class="badge {{ diff.change_level_class }}">{{ diff.change_level }}</span>
+                            </div>
+                            {% if diff.details | length > 0 %}
+                            <ul class="difference-details">
+                                {% for detail in diff.details %}
+                                <li>{{ detail }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="no-changes">
+                <h2>No Changes Detected</h2>
+                <p>The schemas are identical between versions.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Click on schema cards to expand/collapse
+        document.querySelectorAll('.schema-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                e.stopPropagation();
+                this.classList.toggle('expanded');
+            });
+        });
+    </script>
+</body>
+</html>
+

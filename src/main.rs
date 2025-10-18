@@ -1,5 +1,8 @@
 use oas3::OpenApiV3Spec;
 use openapi_diff::matcher;
+use openapi_diff::render::{html::HtmlRenderer, Renderer};
+use std::fs;
+use std::path::Path;
 
 // TODO propper exit code and CLI wrapper for utlity
 
@@ -21,7 +24,7 @@ fn parse_openapi(path: &str) -> OpenApiV3Spec {
 }
 
 fn main() {
-    println!("Hello, world!");
+    println!("🔍 OpenAPI Diff Tool\n");
 
     let base = parse_openapi("/Users/mansur/projects/rust/openapi_diff/base_openapi.json");
     let current = parse_openapi("/Users/mansur/projects/rust/openapi_diff/current_openapi.json");
@@ -35,23 +38,41 @@ fn main() {
     let results = matcher.match_schemas();
 
     // Display stats
-    println!("\n=== Schema Comparison Stats ===\n");
+    println!("=== Schema Comparison Stats ===\n");
     println!("Base schemas: {}", base_schemas.len());
     println!("Current schemas: {}", current_schemas.len());
     println!("Schemas with changes: {}", results.len());
     
-    // Display results
-    println!("\n=== Schema Changes ===\n");
-    if results.is_empty() {
-        println!("No changes detected.");
-    } else {
-        for result in results {
-            println!("Schema: {}", result.name);
-            println!("Change Level: {:?}", result.change_level);
-            for diff in &result.differences {
-                println!("  - {:?}", diff);
+    // Render to HTML
+    println!("\n📄 Generating HTML report...");
+    let renderer = HtmlRenderer::new().expect("Failed to create HTML renderer");
+    let html_output = renderer.render(&results).expect("Failed to render HTML");
+    
+    // Write to file
+    let output_path = Path::new("openapi_diff_report.html");
+    fs::write(output_path, html_output).expect("Failed to write HTML file");
+    
+    println!("✅ Report generated: {}", output_path.display());
+    
+    // Open in Chrome
+    println!("🌐 Opening report in Chrome...");
+    let chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    let absolute_path = std::env::current_dir()
+        .expect("Failed to get current directory")
+        .join(output_path);
+    
+    match std::process::Command::new(chrome_path)
+        .arg(absolute_path.to_str().unwrap())
+        .spawn()
+    {
+        Ok(_) => println!("✨ Done!"),
+        Err(e) => {
+            eprintln!("⚠️  Failed to open in Chrome: {}", e);
+            println!("Trying default browser...");
+            if let Err(e) = open::that(output_path) {
+                eprintln!("⚠️  Failed to open file: {}", e);
+                println!("Please open the file manually: {}", output_path.display());
             }
-            println!();
         }
     }
 }

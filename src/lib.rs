@@ -1,4 +1,5 @@
 pub mod matcher;
+pub mod render;
 
 /// Level of specific change
 #[derive(Debug, Clone, PartialEq)]
