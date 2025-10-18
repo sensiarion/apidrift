@@ -29,10 +29,18 @@ struct SchemaData {
 
 #[derive(Serialize)]
 struct DifferenceData {
+    emoji: String,
     description: String,
     change_level: String,
     change_level_class: String,
-    details: Vec<String>,
+    details: Vec<PropertyCard>,
+}
+
+#[derive(Serialize)]
+struct PropertyCard {
+    emoji: String,
+    property_type: String,
+    content: String,
 }
 
 pub struct HtmlRenderer {
@@ -100,35 +108,61 @@ impl HtmlRenderer {
     }
 
     fn convert_difference(&self, diff: &SchemaDifference, prefix: &str) -> DifferenceData {
-        let (description, details) = match diff {
-            SchemaDifference::Added => ("Schema Added".to_string(), vec![]),
-            SchemaDifference::Removed => ("Schema Removed".to_string(), vec![]),
+        let (emoji, description, details) = match diff {
+            SchemaDifference::Added => ("➕", "Schema Added", vec![]),
+            SchemaDifference::Removed => ("➖", "Schema Removed", vec![]),
             SchemaDifference::TypeChanged { old_type, new_type } => (
-                format!("{}Type Changed", prefix),
-                vec![format!("{} → {}", old_type, new_type)],
+                "🔄",
+                "Type Changed",
+                vec![PropertyCard {
+                    emoji: "📝".to_string(),
+                    property_type: "Type".to_string(),
+                    content: format!("{} → {}", old_type, new_type),
+                }],
             ),
             SchemaDifference::RequiredPropertiesAdded { properties } => (
-                format!("{}Required Properties Added", prefix),
-                properties.iter().map(|p| format!("• {}", p)).collect(),
+                "⚠️",
+                "Required Properties Added",
+                properties.iter().map(|p| PropertyCard {
+                    emoji: "🔧".to_string(),
+                    property_type: "Property".to_string(),
+                    content: p.clone(),
+                }).collect(),
             ),
             SchemaDifference::RequiredPropertiesRemoved { properties } => (
-                format!("{}Required Properties Removed", prefix),
-                properties.iter().map(|p| format!("• {}", p)).collect(),
+                "⚠️",
+                "Required Properties Removed",
+                properties.iter().map(|p| PropertyCard {
+                    emoji: "🔧".to_string(),
+                    property_type: "Property".to_string(),
+                    content: p.clone(),
+                }).collect(),
             ),
             SchemaDifference::PropertyAdded { property_name } => (
-                format!("{}Property Added: {}", prefix, property_name),
-                vec![],
+                "➕",
+                "Property Added",
+                vec![PropertyCard {
+                    emoji: "🔧".to_string(),
+                    property_type: "Property".to_string(),
+                    content: property_name.clone(),
+                }],
             ),
             SchemaDifference::PropertyRemoved { property_name } => (
-                format!("{}Property Removed: {}", prefix, property_name),
-                vec![],
+                "➖",
+                "Property Removed",
+                vec![PropertyCard {
+                    emoji: "🔧".to_string(),
+                    property_type: "Property".to_string(),
+                    content: property_name.clone(),
+                }],
             ),
             SchemaDifference::PropertyModified {
                 property_name,
                 details,
             } => {
                 let nested_prefix = format!("{}.{} - ", prefix, property_name);
-                let nested_diff = self.convert_difference(details, &nested_prefix);
+                let mut nested_diff = self.convert_difference(details, &nested_prefix);
+                nested_diff.description = format!("Property Modified: {}", property_name);
                 return nested_diff;
             }
             SchemaDifference::DescriptionChanged {
@@ -138,17 +172,32 @@ impl HtmlRenderer {
                 let old = old_description.as_deref().unwrap_or("(none)");
                 let new = new_description.as_deref().unwrap_or("(none)");
                 (
-                    format!("{}Description Changed", prefix),
-                    vec![format!("{} → {}", old, new)],
+                    "📝",
+                    "Description Changed",
+                    vec![PropertyCard {
+                        emoji: "📄".to_string(),
+                        property_type: "Description".to_string(),
+                        content: format!("{} → {}", old, new),
+                    }],
                 )
             }
             SchemaDifference::EnumValuesAdded { values } => (
-                format!("{}Enum Values Added", prefix),
-                values.iter().map(|v| format!("• {}", v)).collect(),
+                "➕",
+                "Enum Values Added",
+                values.iter().map(|v| PropertyCard {
+                    emoji: "📋".to_string(),
+                    property_type: "Enum".to_string(),
+                    content: v.to_string(),
+                }).collect(),
             ),
             SchemaDifference::EnumValuesRemoved { values } => (
-                format!("{}Enum Values Removed", prefix),
-                values.iter().map(|v| format!("• {}", v)).collect(),
+                "➖",
+                "Enum Values Removed",
+                values.iter().map(|v| PropertyCard {
+                    emoji: "📋".to_string(),
+                    property_type: "Enum".to_string(),
+                    content: v.to_string(),
+                }).collect(),
             ),
             SchemaDifference::FormatChanged {
                 old_format,
@@ -157,19 +206,30 @@ impl HtmlRenderer {
                 let old = old_format.as_deref().unwrap_or("(none)");
                 let new = new_format.as_deref().unwrap_or("(none)");
                 (
-                    format!("{}Format Changed", prefix),
-                    vec![format!("{} → {}", old, new)],
+                    "🔄",
+                    "Format Changed",
+                    vec![PropertyCard {
+                        emoji: "🏷️".to_string(),
+                        property_type: "Format".to_string(),
+                        content: format!("{} → {}", old, new),
+                    }],
                 )
             }
             SchemaDifference::NullableChanged {
                 old_nullable,
                 new_nullable,
             } => (
-                format!("{}Nullable Changed", prefix),
-                vec![format!("{} → {}", old_nullable, new_nullable)],
+                "🔄",
+                "Nullable Changed",
+                vec![PropertyCard {
+                    emoji: "❓".to_string(),
+                    property_type: "Nullable".to_string(),
+                    content: format!("{} → {}", old_nullable, new_nullable),
+                }],
             ),
             SchemaDifference::ArrayItemsChanged { details } => {
-                let nested_diff = self.convert_difference(details, &format!("{}Items - ", prefix));
+                let mut nested_diff = self.convert_difference(details, &format!("{}Items - ", prefix));
+                nested_diff.description = "Array Items Changed".to_string();
                 return nested_diff;
             }
         };
@@ -181,7 +241,8 @@ impl HtmlRenderer {
         };
 
         DifferenceData {
-            description,
+            emoji: emoji.to_string(),
+            description: description.to_string(),
             change_level,
             change_level_class,
             details,

@@ -56,22 +56,30 @@ fn main() {
     
     // Open in Chrome
     println!("🌐 Opening report in Chrome...");
-    let chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     let absolute_path = std::env::current_dir()
         .expect("Failed to get current directory")
-        .join(output_path);
+        .join(output_path)
+        .canonicalize()
+        .expect("Failed to get canonical path");
     
-    match std::process::Command::new(chrome_path)
-        .arg(absolute_path.to_str().unwrap())
+    match std::process::Command::new("open")
+        .arg("-a")
+        .arg("Google Chrome")
+        .arg(&absolute_path)
         .spawn()
     {
         Ok(_) => println!("✨ Done!"),
         Err(e) => {
             eprintln!("⚠️  Failed to open in Chrome: {}", e);
             println!("Trying default browser...");
-            if let Err(e) = open::that(output_path) {
+            if let Err(e) = std::process::Command::new("open")
+                .arg(&absolute_path)
+                .spawn()
+            {
                 eprintln!("⚠️  Failed to open file: {}", e);
-                println!("Please open the file manually: {}", output_path.display());
+                println!("Please open the file manually: {}", absolute_path.display());
+            } else {
+                println!("✨ Opened in default browser!");
             }
         }
     }
