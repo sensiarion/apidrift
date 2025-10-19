@@ -66,6 +66,25 @@ The tool generates a comprehensive HTML report showing:
 
 Both JSON and YAML OpenAPI specs are supported.
 
+## For Developers
+
+### Creating a Release
+
+This project uses automated versioning and releases:
+
+1. Go to [GitHub Actions](https://github.com/sensiarion/apidrift/actions/workflows/auto-release.yml)
+2. Click "Run workflow"
+3. Select version bump type (patch/minor/major)
+4. The workflow will:
+   - Auto-increment the version
+   - Update `Cargo.toml` and `Cargo.lock`
+   - Commit changes to main
+   - Create a git tag
+   - Build binaries for all platforms
+   - Create a GitHub release with all assets
+
+See [RELEASE.md](RELEASE.md) for detailed release instructions.
+
 ## Why i want yet another one tool
 
 I really love [oasdiff](https://github.com/oasdiff/oasdiff) and use it in my work projects. But we have some troubles

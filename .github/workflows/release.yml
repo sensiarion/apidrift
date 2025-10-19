@@ -4,73 +4,40 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      version: ${{ steps.get_version.outputs.version }}
-    steps:
-      - name: Get version from tag
-        id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ steps.get_version.outputs.version }}
-          draft: false
-          prerelease: false
-
-  build-linux:
-    name: Build Linux (x86_64)
-    runs-on: ubuntu-latest
-    needs: create-release
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - name: Build
-        run: cargo build --release --verbose
-
-      - name: Create archive
-        run: |
-          mkdir -p artifacts
-          cp target/release/apidrift artifacts/
-          cd artifacts
-          tar -czf apidrift-linux-x86_64.tar.gz apidrift
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/apidrift-linux-x86_64.tar.gz
-          asset_name: apidrift-linux-x86_64.tar.gz
-          asset_content_type: application/gzip
-
-  build-linux-arm64:
-    name: Build Linux (ARM64)
-    runs-on: ubuntu-latest
-    needs: create-release
+  build-and-release:
+    name: Build and Release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: apidrift
+            asset_name: apidrift-linux-x86_64.tar.gz
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: apidrift
+            asset_name: apidrift-linux-arm64.tar.gz
+            cross: true
+          - os: macos-13
+            target: x86_64-apple-darwin
+            artifact_name: apidrift
+            asset_name: apidrift-macos-x86_64.tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact_name: apidrift
+            asset_name: apidrift-macos-arm64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: apidrift.exe
+            asset_name: apidrift-windows-x86_64.zip
+    
+    runs-on: ${{ matrix.os }}
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -81,138 +48,102 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
-          target: aarch64-unknown-linux-gnu
+          target: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.cross
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build
-        run: |
-          cargo build --release --target aarch64-unknown-linux-gnu --verbose
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --target ${{ matrix.target }} --verbose
 
-      - name: Create archive
-        run: |
-          mkdir -p artifacts
-          cp target/aarch64-unknown-linux-gnu/release/apidrift artifacts/
-          cd artifacts
-          tar -czf apidrift-linux-arm64.tar.gz apidrift
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/apidrift-linux-arm64.tar.gz
-          asset_name: apidrift-linux-arm64.tar.gz
-          asset_content_type: application/gzip
-
-  build-macos:
-    name: Build macOS (x86_64)
-    runs-on: macos-13
-    needs: create-release
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - name: Build
-        run: cargo build --release --verbose
-
-      - name: Create archive
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p artifacts
-          cp target/release/apidrift artifacts/
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} artifacts/
           cd artifacts
-          tar -czf apidrift-macos-x86_64.tar.gz apidrift
+          tar -czf ${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+          mv ${{ matrix.asset_name }} ..
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/apidrift-macos-x86_64.tar.gz
-          asset_name: apidrift-macos-x86_64.tar.gz
-          asset_content_type: application/gzip
-
-  build-macos-arm64:
-    name: Build macOS (ARM64/Apple Silicon)
-    runs-on: macos-14
-    needs: create-release
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - name: Build
-        run: cargo build --release --verbose
-
-      - name: Create archive
-        run: |
-          mkdir -p artifacts
-          cp target/release/apidrift artifacts/
-          cd artifacts
-          tar -czf apidrift-macos-arm64.tar.gz apidrift
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/apidrift-macos-arm64.tar.gz
-          asset_name: apidrift-macos-arm64.tar.gz
-          asset_content_type: application/gzip
-
-  build-windows:
-    name: Build Windows (x86_64)
-    runs-on: windows-latest
-    needs: create-release
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - name: Build
-        run: cargo build --release --verbose
-
-      - name: Create archive
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts
-          Copy-Item target/release/apidrift.exe artifacts/
-          Compress-Archive -Path artifacts/apidrift.exe -DestinationPath artifacts/apidrift-windows-x86_64.zip
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact_name }} artifacts/
+          Compress-Archive -Path artifacts/${{ matrix.artifact_name }} -DestinationPath ${{ matrix.asset_name }}
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+          retention-days: 1
+
+  create-release:
+    name: Create Release
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec cp {} release-assets/ \;
+          ls -lah release-assets/
+
+      - name: Get version from tag
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## 🚀 Release ${{ steps.get_version.outputs.version }}
+
+          ### 📦 Installation
+
+          **Quick install (Linux/macOS):**
+          ```bash
+          curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+          ```
+
+          **Or download binaries directly:**
+
+          - **Linux (x86_64)**: [apidrift-linux-x86_64.tar.gz](https://github.com/sensiarion/apidrift/releases/download/${{ steps.get_version.outputs.version }}/apidrift-linux-x86_64.tar.gz)
+          - **Linux (ARM64)**: [apidrift-linux-arm64.tar.gz](https://github.com/sensiarion/apidrift/releases/download/${{ steps.get_version.outputs.version }}/apidrift-linux-arm64.tar.gz)
+          - **macOS (Intel)**: [apidrift-macos-x86_64.tar.gz](https://github.com/sensiarion/apidrift/releases/download/${{ steps.get_version.outputs.version }}/apidrift-macos-x86_64.tar.gz)
+          - **macOS (Apple Silicon)**: [apidrift-macos-arm64.tar.gz](https://github.com/sensiarion/apidrift/releases/download/${{ steps.get_version.outputs.version }}/apidrift-macos-arm64.tar.gz)
+          - **Windows (x86_64)**: [apidrift-windows-x86_64.zip](https://github.com/sensiarion/apidrift/releases/download/${{ steps.get_version.outputs.version }}/apidrift-windows-x86_64.zip)
+
+          ### 📝 Changes
+
+          See the commits included in this release for details.
+          EOF
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-assets/*
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/apidrift-windows-x86_64.zip
-          asset_name: apidrift-windows-x86_64.zip
-          asset_content_type: application/zip
-
