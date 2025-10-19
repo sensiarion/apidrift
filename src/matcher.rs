@@ -1,117 +1,8 @@
 use oas3::spec::{ObjectOrReference, ObjectSchema, Spec};
 use std::collections::BTreeMap;
 
-use crate::ChangeLevel;
-
-/// Represents a difference found in a schema
-#[derive(Debug, Clone, PartialEq)]
-pub enum SchemaDifference {
-    /// Schema was added (only in new version)
-    Added,
-    /// Schema was removed (only in old version)
-    Removed,
-    /// Schema type changed
-    TypeChanged {
-        old_type: String,
-        new_type: String,
-    },
-    /// Required properties changed
-    RequiredPropertiesAdded {
-        properties: Vec<String>,
-    },
-    RequiredPropertiesRemoved {
-        properties: Vec<String>,
-    },
-    /// Properties changed
-    PropertyAdded {
-        property_name: String,
-    },
-    PropertyRemoved {
-        property_name: String,
-    },
-    PropertyModified {
-        property_name: String,
-        details: Box<SchemaDifference>,
-    },
-    /// Description changed
-    DescriptionChanged {
-        old_description: Option<String>,
-        new_description: Option<String>,
-    },
-    /// Enum values changed
-    EnumValuesAdded {
-        values: Vec<serde_json::Value>,
-    },
-    EnumValuesRemoved {
-        values: Vec<serde_json::Value>,
-    },
-    /// Format changed
-    FormatChanged {
-        old_format: Option<String>,
-        new_format: Option<String>,
-    },
-    /// Nullable changed
-    NullableChanged {
-        old_nullable: bool,
-        new_nullable: bool,
-    },
-    /// Array items changed
-    ArrayItemsChanged {
-        details: Box<SchemaDifference>,
-    },
-}
-
-/// Result of matching a schema between two versions
-#[derive(Debug, Clone)]
-pub struct SchemaMatchResult {
-    pub name: String,
-    pub differences: Vec<SchemaDifference>,
-    pub change_level: ChangeLevel,
-}
-
-impl SchemaDifference {
-    /// Determine the change level for this difference
-    pub fn change_level(&self) -> ChangeLevel {
-        match self {
-            // Breaking changes
-            SchemaDifference::Removed => ChangeLevel::Breaking,
-            SchemaDifference::TypeChanged { .. } => ChangeLevel::Breaking,
-            SchemaDifference::RequiredPropertiesAdded { .. } => ChangeLevel::Breaking,
-            SchemaDifference::PropertyRemoved { .. } => ChangeLevel::Breaking,
-            SchemaDifference::EnumValuesRemoved { .. } => ChangeLevel::Breaking,
-            SchemaDifference::NullableChanged {
-                old_nullable: true,
-                new_nullable: false,
-            } => ChangeLevel::Breaking,
-            SchemaDifference::NullableChanged {
-                old_nullable: false,
-                new_nullable: false,
-            } => ChangeLevel::Change,
-            SchemaDifference::NullableChanged {
-                old_nullable: true,
-                new_nullable: true,
-            } => ChangeLevel::Change,
-
-            // Warnings
-            SchemaDifference::FormatChanged { .. } => ChangeLevel::Warning,
-            SchemaDifference::NullableChanged {
-                old_nullable: false,
-                new_nullable: true,
-            } => ChangeLevel::Warning,
-
-            // Non-breaking changes
-            SchemaDifference::Added => ChangeLevel::Change,
-            SchemaDifference::RequiredPropertiesRemoved { .. } => ChangeLevel::Change,
-            SchemaDifference::PropertyAdded { .. } => ChangeLevel::Change,
-            SchemaDifference::DescriptionChanged { .. } => ChangeLevel::Change,
-            SchemaDifference::EnumValuesAdded { .. } => ChangeLevel::Change,
-
-            // Recursive cases
-            SchemaDifference::PropertyModified { details, .. } => details.change_level(),
-            SchemaDifference::ArrayItemsChanged { details } => details.change_level(),
-        }
-    }
-}
+use crate::rules::{MatchResult, RuleViolation};
+use crate::rules::schema::*;
 
 /// Schema matcher for comparing OpenAPI schemas between versions
 pub struct SchemaMatcher<'a> {
@@ -137,7 +28,7 @@ impl<'a> SchemaMatcher<'a> {
     }
 
     /// Match schemas between base and current versions
-    pub fn match_schemas(&self) -> Vec<SchemaMatchResult> {
+    pub fn match_schemas(&self) -> Vec<MatchResult> {
         let mut results = Vec::new();
 
         // Find all schema names from both versions
@@ -149,17 +40,10 @@ impl<'a> SchemaMatcher<'a> {
             let base_schema = self.base_schemas.get(&schema_name);
             let current_schema = self.current_schemas.get(&schema_name);
 
-            let differences = self.compare_schemas(base_schema, current_schema);
+            let violations = self.compare_schemas(&schema_name, base_schema, current_schema);
 
-            if !differences.is_empty() {
-                // Calculate overall change level (use the highest severity)
-                let change_level = self.calculate_overall_change_level(&differences);
-
-                results.push(SchemaMatchResult {
-                    name: schema_name,
-                    differences,
-                    change_level,
-                });
+            if !violations.is_empty() {
+                results.push(MatchResult::new(schema_name, violations));
             }
         }
 
@@ -169,17 +53,33 @@ impl<'a> SchemaMatcher<'a> {
     /// Compare two schemas and find differences
     fn compare_schemas(
         &self,
+        schema_name: &str,
         base: Option<&ObjectOrReference<ObjectSchema>>,
         current: Option<&ObjectOrReference<ObjectSchema>>,
-    ) -> Vec<SchemaDifference> {
-        match (base, current) {
-            (None, None) => vec![],
-            (None, Some(_)) => vec![SchemaDifference::Added],
-            (Some(_), None) => vec![SchemaDifference::Removed],
-            (Some(base_ref), Some(current_ref)) => {
-                self.compare_schema_details(base_ref, current_ref)
+    ) -> Vec<RuleViolation> {
+        let mut violations = Vec::new();
+        
+        // Resolve references first
+        let base_schema = base.and_then(|b| self.resolve_schema_ref(b, self.base_spec));
+        let current_schema = current.and_then(|c| self.resolve_schema_ref(c, self.current_spec));
+        
+        // Use SchemaRule trait for schema-level detection
+        violations.extend(self.detect_schema_rule_violations::<SchemaAddedRule>(
+            schema_name, "", base_schema, current_schema
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<SchemaRemovedRule>(
+            schema_name, "", base_schema, current_schema
+        ));
+        
+        // If both schemas exist, compare their details
+        if base.is_some() && current.is_some() {
+            if let (Some(base_ref), Some(current_ref)) = (base, current) {
+                violations.extend(self.compare_schema_details(schema_name, "", base_ref, current_ref));
             }
         }
+        
+        violations
     }
 
     /// Resolve a reference to an actual schema
@@ -209,226 +109,181 @@ impl<'a> SchemaMatcher<'a> {
         }
     }
 
+    /// Detect all schema-level rule violations using the SchemaRule trait
+    fn detect_schema_rule_violations<T: crate::rules::schema::SchemaRule + 'static>(
+        &self,
+        schema_name: &str,
+        property_path: &str,
+        base: Option<&ObjectSchema>,
+        current: Option<&ObjectSchema>,
+    ) -> Vec<RuleViolation> {
+        T::detect(schema_name, property_path, base, current)
+            .into_iter()
+            .map(|rule| RuleViolation::new(Box::new(rule)))
+            .collect()
+    }
+
     /// Compare detailed schema properties with depth limit to prevent stack overflow
-    fn compare_schema_details(&self, base: &ObjectOrReference<ObjectSchema>, current: &ObjectOrReference<ObjectSchema>) -> Vec<SchemaDifference> {
-        self.compare_schema_details_with_depth(base, current, 0)
+    fn compare_schema_details(
+        &self,
+        schema_name: &str,
+        property_path: &str,
+        base: &ObjectOrReference<ObjectSchema>,
+        current: &ObjectOrReference<ObjectSchema>,
+    ) -> Vec<RuleViolation> {
+        self.compare_schema_details_with_depth(schema_name, property_path, base, current, 0)
     }
 
     /// Compare detailed schema properties with recursion depth tracking
     fn compare_schema_details_with_depth(
         &self,
+        schema_name: &str,
+        property_path: &str,
         base: &ObjectOrReference<ObjectSchema>,
         current: &ObjectOrReference<ObjectSchema>,
         depth: usize,
-    ) -> Vec<SchemaDifference> {
+    ) -> Vec<RuleViolation> {
         const MAX_DEPTH: usize = 10; // Prevent infinite recursion
-        let mut differences = Vec::new();
+        let mut violations = Vec::new();
 
         // Stop recursion if we're too deep
         if depth >= MAX_DEPTH {
-            return differences;
+            return violations;
         }
 
         // Resolve references to actual schemas
         let base_schema = match self.resolve_schema_ref(base, self.base_spec) {
             Some(schema) => schema,
-            None => return differences, // Skip if we can't resolve the reference
+            None => return violations, // Skip if we can't resolve the reference
         };
 
         let current_schema = match self.resolve_schema_ref(current, self.current_spec) {
             Some(schema) => schema,
-            None => return differences, // Skip if we can't resolve the reference
+            None => return violations, // Skip if we can't resolve the reference
         };
 
-        // Compare schema type
-        if base_schema.schema_type != current_schema.schema_type {
-            differences.push(SchemaDifference::TypeChanged {
-                old_type: format!("{:?}", base_schema.schema_type),
-                new_type: format!("{:?}", current_schema.schema_type),
-            });
+        // Use SchemaRule trait for detection
+        violations.extend(self.detect_schema_rule_violations::<TypeChangedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<RequiredPropertyAddedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+
+        // Use SchemaRule trait for property-level detection
+        violations.extend(self.detect_schema_rule_violations::<PropertyAddedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<PropertyRemovedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        // Detect properties that were removed from required array but still exist as optional
+        let base_required: std::collections::HashSet<_> = base_schema.required.iter().collect();
+        let current_required: std::collections::HashSet<_> = current_schema.required.iter().collect();
+        let current_props_keys: std::collections::HashSet<_> = current_schema.properties.keys().collect();
+        
+        for prop in base_required.difference(&current_required) {
+            // Only if the property still exists (made optional rather than removed)
+            if current_props_keys.contains(prop) {
+                violations.push(RuleViolation::new(Box::new(PropertyRemovedRule {
+                    schema_name: schema_name.to_string(),
+                    property_path: property_path.to_string(),
+                    property_name: (*prop).clone(),
+                    was_required: true,
+                })));
+            }
         }
 
-        // Compare required properties
-        let base_required: std::collections::HashSet<_> =
-            base_schema.required.iter().cloned().collect();
-        let current_required: std::collections::HashSet<_> =
-            current_schema.required.iter().cloned().collect();
-
-        let added_required: Vec<String> = current_required
-            .difference(&base_required)
-            .cloned()
-            .collect();
-        let removed_required: Vec<String> = base_required
-            .difference(&current_required)
-            .cloned()
-            .collect();
-
-        if !added_required.is_empty() {
-            differences.push(SchemaDifference::RequiredPropertiesAdded {
-                properties: added_required,
-            });
-        }
-        if !removed_required.is_empty() {
-            differences.push(SchemaDifference::RequiredPropertiesRemoved {
-                properties: removed_required,
-            });
-        }
-
-        // Compare properties
+        // Recursively compare nested properties
         let base_props = &base_schema.properties;
         let current_props = &current_schema.properties;
 
-        let mut all_prop_names: std::collections::HashSet<String> =
-            base_props.keys().cloned().collect();
-        all_prop_names.extend(current_props.keys().cloned());
-
-        for prop_name in all_prop_names {
-            let base_prop = base_props.get(&prop_name);
-            let current_prop = current_props.get(&prop_name);
-
-            match (base_prop, current_prop) {
-                (None, Some(_)) => {
-                    differences.push(SchemaDifference::PropertyAdded {
-                        property_name: prop_name,
-                    });
-                }
-                (Some(_), None) => {
-                    differences.push(SchemaDifference::PropertyRemoved {
-                        property_name: prop_name.clone(),
-                    });
-                }
-                (Some(base_p), Some(current_p)) => {
-                    let prop_diffs = self.compare_schema_details_with_depth(base_p, current_p, depth + 1);
-                    if !prop_diffs.is_empty() {
-                        for diff in prop_diffs {
-                            differences.push(SchemaDifference::PropertyModified {
-                                property_name: prop_name.clone(),
-                                details: Box::new(diff),
-                            });
-                        }
-                    }
-                }
-                (None, None) => {}
+        for (prop_name, current_prop) in current_props {
+            if let Some(base_prop) = base_props.get(prop_name) {
+                // Build nested property path
+                let nested_path = if property_path.is_empty() {
+                    prop_name.clone()
+                } else {
+                    format!("{}.{}", property_path, prop_name)
+                };
+                let prop_violations = self.compare_schema_details_with_depth(
+                    schema_name,
+                    &nested_path,
+                    base_prop,
+                    current_prop,
+                    depth + 1,
+                );
+                violations.extend(prop_violations);
             }
         }
 
-        // Compare description
-        if base_schema.description != current_schema.description {
-            differences.push(SchemaDifference::DescriptionChanged {
-                old_description: base_schema.description.clone(),
-                new_description: current_schema.description.clone(),
-            });
-        }
-
-        // Compare enum values
-        if !base_schema.enum_values.is_empty() || !current_schema.enum_values.is_empty() {
-            let base_values: std::collections::HashSet<_> =
-                base_schema.enum_values.iter().collect();
-            let current_values: std::collections::HashSet<_> =
-                current_schema.enum_values.iter().collect();
-
-            let added_values: Vec<_> = current_values
-                .difference(&base_values)
-                .map(|v| (*v).clone())
-                .collect();
-            let removed_values: Vec<_> = base_values
-                .difference(&current_values)
-                .map(|v| (*v).clone())
-                .collect();
-
-            if !added_values.is_empty() {
-                differences.push(SchemaDifference::EnumValuesAdded {
-                    values: added_values,
-                });
-            }
-            if !removed_values.is_empty() {
-                differences.push(SchemaDifference::EnumValuesRemoved {
-                    values: removed_values,
-                });
-            }
-        }
-
-        // Compare format
-        if base_schema.format != current_schema.format {
-            differences.push(SchemaDifference::FormatChanged {
-                old_format: base_schema.format.clone(),
-                new_format: current_schema.format.clone(),
-            });
-        }
-
-        // Compare nullable
-        let base_nullable = base_schema.is_nullable().unwrap_or(false);
-        let current_nullable = current_schema.is_nullable().unwrap_or(false);
-        if base_nullable != current_nullable {
-            differences.push(SchemaDifference::NullableChanged {
-                old_nullable: base_nullable,
-                new_nullable: current_nullable,
-            });
-        }
+        // Use SchemaRule trait for all other detections
+        violations.extend(self.detect_schema_rule_violations::<DescriptionChangedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<EnumValuesAddedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<EnumValuesRemovedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<FormatChangedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
+        
+        violations.extend(self.detect_schema_rule_violations::<NullableChangedRule>(
+            schema_name, property_path, Some(base_schema), Some(current_schema)
+        ));
 
         // Compare array items (for now, skip Schema enum handling)
         // TODO: Implement proper array items comparison
 
-        differences
+        violations
     }
 
-    /// Calculate the overall change level from a list of differences
-    fn calculate_overall_change_level(&self, differences: &Vec<SchemaDifference>) -> ChangeLevel {
-        let mut has_breaking = false;
-        let mut has_warning = false;
-
-        for diff in differences {
-            match diff.change_level() {
-                ChangeLevel::Breaking => has_breaking = true,
-                ChangeLevel::Warning => has_warning = true,
-                ChangeLevel::Change => {}
-            }
-        }
-
-        if has_breaking {
-            ChangeLevel::Breaking
-        } else if has_warning {
-            ChangeLevel::Warning
-        } else {
-            ChangeLevel::Change
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ChangeLevel;
+    use crate::rules::Rule;
 
     #[test]
     fn test_change_level_detection() {
         // Breaking changes
-        assert!(matches!(
-            SchemaDifference::Removed.change_level(),
-            ChangeLevel::Breaking
-        ));
-        assert!(matches!(
-            SchemaDifference::TypeChanged {
-                old_type: String::from("String"),
-                new_type: String::from("Number")
-            }
-            .change_level(),
-            ChangeLevel::Breaking
-        ));
+        let removed_rule = SchemaRemovedRule {
+            schema_name: "Test".to_string(),
+        };
+        assert!(matches!(removed_rule.change_level(), ChangeLevel::Breaking));
+
+        let type_changed_rule = TypeChangedRule {
+            schema_name: "Test".to_string(),
+            property_path: "".to_string(),
+            old_type: "String".to_string(),
+            new_type: "Number".to_string(),
+        };
+        assert!(matches!(type_changed_rule.change_level(), ChangeLevel::Breaking));
 
         // Warnings
-        assert!(matches!(
-            SchemaDifference::FormatChanged {
-                old_format: Some("email".to_string()),
-                new_format: Some("uri".to_string())
-            }
-            .change_level(),
-            ChangeLevel::Warning
-        ));
+        let format_changed_rule = FormatChangedRule {
+            schema_name: "Test".to_string(),
+            property_path: "".to_string(),
+            old_format: Some("email".to_string()),
+            new_format: Some("uri".to_string()),
+        };
+        assert!(matches!(format_changed_rule.change_level(), ChangeLevel::Warning));
 
         // Non-breaking changes
-        assert!(matches!(
-            SchemaDifference::Added.change_level(),
-            ChangeLevel::Change
-        ));
+        let added_rule = SchemaAddedRule {
+            schema_name: "Test".to_string(),
+        };
+        assert!(matches!(added_rule.change_level(), ChangeLevel::Change));
     }
 }

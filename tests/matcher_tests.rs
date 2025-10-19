@@ -1,5 +1,5 @@
 use oas3::OpenApiV3Spec;
-use openapi_diff::matcher::{SchemaDifference, SchemaMatcher};
+use openapi_diff::matcher::SchemaMatcher;
 use openapi_diff::ChangeLevel;
 
 fn load_test_schema(filename: &str) -> OpenApiV3Spec {
@@ -25,8 +25,8 @@ fn test_schema_matcher_with_test_schemas() {
     for result in &results {
         println!("\n=== Schema: {} ===", result.name);
         println!("Change Level: {:?}", result.change_level);
-        for diff in &result.differences {
-            println!("  - {:?}", diff);
+        for violation in &result.violations {
+            println!("  - {}: {}", violation.name(), violation.description());
         }
     }
 }
@@ -50,17 +50,16 @@ fn test_user_schema_changes() {
     // - Made "age" nullable
     assert_eq!(user_result.change_level, ChangeLevel::Breaking);
 
-    // Check for specific differences
-    let has_required_added = user_result.differences.iter().any(|d| matches!(
-        d,
-        SchemaDifference::RequiredPropertiesAdded { properties } if properties.contains(&"username".to_string())
-    ));
+    // Check for specific violations
+    let has_required_added = user_result.violations.iter().any(|v| {
+        v.name() == "RequiredPropertyAdded" && v.description().contains("username")
+    });
     assert!(has_required_added, "Should detect added required property");
 
     let has_property_removed = user_result
-        .differences
+        .violations
         .iter()
-        .any(|d| matches!(d, SchemaDifference::PropertyRemoved { property_name } if property_name == "name"));
+        .any(|v| v.name() == "PropertyRemoved" && v.description().contains("name"));
     assert!(has_property_removed, "Should detect removed property");
 }
 
@@ -84,17 +83,16 @@ fn test_product_schema_changes() {
     // - Changed description (non-breaking)
 
     // Check for removed required properties
-    let has_required_removed = product_result.differences.iter().any(|d| matches!(
-        d,
-        SchemaDifference::RequiredPropertiesRemoved { properties } if properties.contains(&"price".to_string())
-    ));
+    let has_required_removed = product_result.violations.iter().any(|v| {
+        v.name() == "RequiredPropertyRemoved" && v.description().contains("price")
+    });
     assert!(has_required_removed, "Should detect removed required property");
 
     // Check for enum values added
     let has_enum_added = product_result
-        .differences
+        .violations
         .iter()
-        .any(|d| matches!(d, SchemaDifference::PropertyModified { property_name, .. } if property_name == "category"));
+        .any(|v| v.name() == "EnumValuesAdded" && v.context().contains("category"));
     assert!(has_enum_added, "Should detect enum changes");
 }
 
@@ -115,9 +113,9 @@ fn test_status_enum_breaking_change() {
     assert_eq!(status_result.change_level, ChangeLevel::Breaking);
 
     let has_enum_removed = status_result
-        .differences
+        .violations
         .iter()
-        .any(|d| matches!(d, SchemaDifference::EnumValuesRemoved { .. }));
+        .any(|v| v.name() == "EnumValuesRemoved");
     assert!(has_enum_removed, "Should detect removed enum values");
 }
 
@@ -139,9 +137,9 @@ fn test_new_model_added() {
     assert_eq!(new_model.change_level, ChangeLevel::Change);
 
     let has_added = new_model
-        .differences
+        .violations
         .iter()
-        .any(|d| matches!(d, SchemaDifference::Added));
+        .any(|v| v.name() == "SchemaAdded");
     assert!(has_added, "Should mark new model as Added");
 }
 
@@ -184,14 +182,14 @@ fn test_change_level_hierarchy() {
 
     for result in results {
         if result.change_level == ChangeLevel::Breaking {
-            // Should have at least one breaking difference
+            // Should have at least one breaking violation
             let has_breaking = result
-                .differences
+                .violations
                 .iter()
-                .any(|d| matches!(d.change_level(), ChangeLevel::Breaking));
+                .any(|v| matches!(v.change_level(), ChangeLevel::Breaking));
             assert!(
                 has_breaking,
-                "Breaking change level should have at least one breaking difference in {}",
+                "Breaking change level should have at least one breaking violation in {}",
                 result.name
             );
         }

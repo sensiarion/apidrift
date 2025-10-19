@@ -24,11 +24,13 @@ fn main() {
         println!("🔖 Change Level: {:?}", result.change_level);
         println!();
         
-        if result.differences.is_empty() {
-            println!("  No differences");
+        if result.violations.is_empty() {
+            println!("  No violations");
         } else {
-            for (i, diff) in result.differences.iter().enumerate() {
-                println!("  {}. {:?}", i + 1, diff);
+            for (i, violation) in result.violations.iter().enumerate() {
+                println!("  {}. [{}] {}", i + 1, violation.name(), violation.description());
+                println!("      Context: {}", violation.context());
+                println!("      Level: {:?}", violation.change_level());
             }
         }
         println!();

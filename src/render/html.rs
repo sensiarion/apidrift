@@ -1,5 +1,5 @@
-use crate::matcher::{SchemaMatchResult, SchemaDifference};
 use crate::render::Renderer;
+use crate::rules::{MatchResult, RuleViolation};
 use crate::ChangeLevel;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -68,7 +68,7 @@ impl HtmlRenderer {
         Ok(Self { tera })
     }
 
-    fn convert_to_template_data(&self, results: &[SchemaMatchResult]) -> TemplateData {
+    fn convert_to_template_data(&self, results: &[MatchResult]) -> TemplateData {
         let mut breaking_count = 0;
         let mut warning_count = 0;
         let mut change_count = 0;
@@ -93,9 +93,9 @@ impl HtmlRenderer {
                     }
                 };
 
-                let differences = result.differences
+                let differences = result.violations
                     .iter()
-                    .map(|diff| self.convert_difference(diff, ""))
+                    .map(|violation| self.convert_violation(violation))
                     .collect();
 
                 SchemaData {
@@ -119,13 +119,13 @@ impl HtmlRenderer {
         }
     }
 
-    fn group_repeating_changes(&self, results: &[SchemaMatchResult]) -> Vec<GroupedChange> {
+    fn group_repeating_changes(&self, results: &[MatchResult]) -> Vec<GroupedChange> {
         let mut change_map: HashMap<String, (DifferenceData, Vec<String>)> = HashMap::new();
 
         // Collect all changes and their schemas
         for result in results {
-            for diff in &result.differences {
-                let diff_data = self.convert_difference(diff, "");
+            for violation in &result.violations {
+                let diff_data = self.convert_violation(violation);
                 let key = self.create_change_key(&diff_data);
                 
                 let entry = change_map.entry(key).or_insert_with(|| (diff_data.clone(), Vec::new()));
@@ -253,110 +253,38 @@ impl HtmlRenderer {
     }
 
 
-    fn convert_difference(&self, diff: &SchemaDifference, prefix: &str) -> DifferenceData {
-        let (emoji, description, details) = match diff {
-            SchemaDifference::Added => ("➕", "Schema Added".to_string(), vec![]),
-            SchemaDifference::Removed => ("➖", "Schema Removed".to_string(), vec![]),
-            SchemaDifference::TypeChanged { old_type, new_type } => (
-                "📝",
-                format!("Type: {} → {}", old_type, new_type),
-                vec![],
-            ),
-            SchemaDifference::RequiredPropertiesAdded { properties } => (
-                "⚠️",
-                "Required Properties Added".to_string(),
-                properties.iter().map(|p| PropertyCard {
-                    emoji: "🔧".to_string(),
-                    property_type: "Required".to_string(),
-                    content: p.clone(),
-                }).collect(),
-            ),
-            SchemaDifference::RequiredPropertiesRemoved { properties } => (
-                "⚠️",
-                "Required Properties Removed".to_string(),
-                properties.iter().map(|p| PropertyCard {
-                    emoji: "🔧".to_string(),
-                    property_type: "Required".to_string(),
-                    content: p.clone(),
-                }).collect(),
-            ),
-            SchemaDifference::PropertyAdded { property_name } => (
-                "🔧",
-                format!("Property Added: {}", property_name),
-                vec![],
-            ),
-            SchemaDifference::PropertyRemoved { property_name } => (
-                "🔧",
-                format!("Property Removed: {}", property_name),
-                vec![],
-            ),
-            SchemaDifference::PropertyModified {
-                property_name,
-                details,
-            } => {
-                let nested_prefix = format!("{}.{} - ", prefix, property_name);
-                let mut nested_diff = self.convert_difference(details, &nested_prefix);
-                nested_diff.description = format!("Property Modified: {}", property_name);
-                return nested_diff;
-            }
-            SchemaDifference::DescriptionChanged {
-                old_description,
-                new_description,
-            } => {
-                let old = old_description.as_deref().unwrap_or("(none)");
-                let new = new_description.as_deref().unwrap_or("(none)");
-                (
-                    "📄",
-                    format!("Description: {} → {}", old, new),
-                    vec![],
-                )
-            }
-            SchemaDifference::EnumValuesAdded { values } => (
-                "➕",
-                "Enum Values Added".to_string(),
-                values.iter().map(|v| PropertyCard {
-                    emoji: "📋".to_string(),
-                    property_type: "Enum".to_string(),
-                    content: v.to_string(),
-                }).collect(),
-            ),
-            SchemaDifference::EnumValuesRemoved { values } => (
-                "➖",
-                "Enum Values Removed".to_string(),
-                values.iter().map(|v| PropertyCard {
-                    emoji: "📋".to_string(),
-                    property_type: "Enum".to_string(),
-                    content: v.to_string(),
-                }).collect(),
-            ),
-            SchemaDifference::FormatChanged {
-                old_format,
-                new_format,
-            } => {
-                let old = old_format.as_deref().unwrap_or("(none)");
-                let new = new_format.as_deref().unwrap_or("(none)");
-                (
-                    "🏷️",
-                    format!("Format: {} → {}", old, new),
-                    vec![],
-                )
-            }
-            SchemaDifference::NullableChanged {
-                old_nullable,
-                new_nullable,
-            } => (
-                "❓",
-                format!("Nullable: {} → {}", old_nullable, new_nullable),
-                vec![],
-            ),
-            SchemaDifference::ArrayItemsChanged { details } => {
-                let mut nested_diff = self.convert_difference(details, &format!("{}Items - ", prefix));
-                nested_diff.description = "Array Items Changed".to_string();
-                return nested_diff;
-            }
+    fn convert_violation(&self, violation: &RuleViolation) -> DifferenceData {
+        let rule = violation.rule();
+        let rule_name = rule.name();
+        let description = rule.description();
+        
+        // Map rule names to emojis and extract details
+        let (emoji, details) = match rule_name {
+            "SchemaAdded" => ("➕", vec![]),
+            "SchemaRemoved" => ("➖", vec![]),
+            "TypeChanged" => ("📝", vec![]),
+            "RequiredPropertyAdded" => ("⚠️", vec![PropertyCard {
+                emoji: "🔧".to_string(),
+                property_type: "Required".to_string(),
+                content: description.clone(),
+            }]),
+            "RequiredPropertyRemoved" => ("⚠️", vec![PropertyCard {
+                emoji: "🔧".to_string(),
+                property_type: "Optional".to_string(),
+                content: description.clone(),
+            }]),
+            "PropertyAdded" => ("🔧", vec![]),
+            "PropertyRemoved" => ("🔧", vec![]),
+            "DescriptionChanged" => ("📄", vec![]),
+            "EnumValuesAdded" => ("➕", vec![]),
+            "EnumValuesRemoved" => ("➖", vec![]),
+            "FormatChanged" => ("🏷️", vec![]),
+            "NullableChanged" => ("❓", vec![]),
+            "ArrayItemsChanged" => ("📦", vec![]),
+            _ => ("❔", vec![]),
         };
 
-        let (change_level, change_level_class) = match diff.change_level() {
+        let (change_level, change_level_class) = match rule.change_level() {
             ChangeLevel::Breaking => ("Breaking".to_string(), "breaking".to_string()),
             ChangeLevel::Warning => ("Warning".to_string(), "warning".to_string()),
             ChangeLevel::Change => ("Change".to_string(), "change".to_string()),
@@ -364,7 +292,7 @@ impl HtmlRenderer {
 
         DifferenceData {
             emoji: emoji.to_string(),
-            description: description.to_string(),
+            description,
             change_level,
             change_level_class,
             details,
@@ -373,7 +301,7 @@ impl HtmlRenderer {
 }
 
 impl Renderer for HtmlRenderer {
-    fn render(&self, results: &[SchemaMatchResult]) -> Result<String, Box<dyn Error>> {
+    fn render(&self, results: &[MatchResult]) -> Result<String, Box<dyn Error>> {
         let data = self.convert_to_template_data(results);
         let mut context = Context::new();
         context.insert("data", &data);
