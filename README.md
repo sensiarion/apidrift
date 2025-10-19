@@ -1,6 +1,70 @@
-# Yet another one openapi diff tool yopendiff
+# apidrift - OpenAPI Diff Tool
+
+[![CI](https://github.com/sensiarion/apidrift/workflows/CI/badge.svg)](https://github.com/sensiarion/apidrift/actions)
+[![Release](https://github.com/sensiarion/apidrift/workflows/Release/badge.svg)](https://github.com/sensiarion/apidrift/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 This tool is intended to help developers explore api changes in their application in most short and understandable way.
+
+## Installation
+
+### Quick Install (Linux/macOS)
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+```
+
+Or with custom installation directory:
+
+```bash
+APIDRIFT_INSTALL_DIR=~/.local/bin curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+```
+
+### Install Specific Version
+
+```bash
+APIDRIFT_VERSION=v0.1.0 curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+```
+
+### Manual Installation
+
+Download pre-built binaries from [Releases](https://github.com/sensiarion/apidrift/releases):
+
+- **Linux (x86_64)**: `apidrift-linux-x86_64.tar.gz`
+- **Linux (ARM64)**: `apidrift-linux-arm64.tar.gz`
+- **macOS (Intel)**: `apidrift-macos-x86_64.tar.gz`
+- **macOS (Apple Silicon)**: `apidrift-macos-arm64.tar.gz`
+- **Windows (x86_64)**: `apidrift-windows-x86_64.zip`
+
+Extract and move the binary to your PATH:
+
+```bash
+tar -xzf apidrift-*.tar.gz
+sudo mv apidrift /usr/local/bin/
+```
+
+### Build from Source
+
+```bash
+git clone https://github.com/sensiarion/apidrift.git
+cd apidrift
+cargo build --release
+sudo mv target/release/apidrift /usr/local/bin/
+```
+
+## Usage
+
+```bash
+apidrift <base_openapi.json> <current_openapi.json> [output.html]
+```
+
+The tool generates a comprehensive HTML report showing:
+- Schema changes grouped by model
+- Route changes
+- Breaking changes highlighted
+- Added/removed/modified endpoints
+
+Both JSON and YAML OpenAPI specs are supported.
 
 ## Why i want yet another one tool
 
@@ -47,32 +111,15 @@ I want to create diff tool, that:
 - track changes by level, as oasdiff do (track breaking changes)
 - accepts both yaml and json format
 
-## Work steps
 
-- [ ] parse json openapi
-  - [ ] structures to parsed data
-- [ ] parse multiple openapi files
-- [ ] base definition for change rules (breaking, warning, non-breaking)
-- [ ] base definition for change (model change, route change)
+## TODO
 
-- [ ] track model changes
-- [ ] track routes changes
-- [ ] bind model changes to route changes
-
-- [ ] changes to json
-- [ ] changes to html
-  - [ ] describe future html format (most expressive and readable)
-  - [ ] prettify html
-  - [ ] interactive elements to html? (grouping collapsed)
-
-### prettifying
-- [ ] human readable errors (wrong file format, incorrect openapi)
 - [ ] parallel comparison run
   - [ ] will require to build dep tree or locks, to prevent miltiple parsing on recursive
-
-### not important
 
 - [ ] auth change/server params
 - [ ] version change tracking
 - [ ] headers tracking
-- [ ] no unwrap without handling
+
+
+## Inspired

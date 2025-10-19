@@ -71,6 +71,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "apidrift"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "oas3",
+ "open",
+ "serde",
+ "serde_json",
+ "tera",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -692,18 +704,6 @@ dependencies = [
  "is-wsl",
  "libc",
  "pathdiff",
-]
-
-[[package]]
-name = "openapi_diff"
-version = "0.1.0"
-dependencies = [
- "clap",
- "oas3",
- "open",
- "serde",
- "serde_json",
- "tera",
 ]
 
 [[package]]
