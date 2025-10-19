@@ -1,6 +1,6 @@
+use crate::matcher::{RouteInfo, SchemaLocation, SchemaReference};
 use crate::render::Renderer;
 use crate::rules::{MatchResult, RuleViolation};
-use crate::matcher::{RouteInfo, SchemaReference, SchemaLocation};
 use crate::ChangeLevel;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -88,7 +88,7 @@ impl HtmlRenderer {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         // Load templates from the templates directory
         let tera = Tera::new("templates/**/*.html")?;
-        
+
         Ok(Self { tera })
     }
 
@@ -99,10 +99,11 @@ impl HtmlRenderer {
         route_results: &[MatchResult],
         route_infos: &[RouteInfo],
     ) -> Result<String, Box<dyn Error>> {
-        let data = self.convert_to_template_data_with_routes(schema_results, route_results, route_infos);
+        let data =
+            self.convert_to_template_data_with_routes(schema_results, route_results, route_infos);
         let mut context = Context::new();
         context.insert("data", &data);
-        
+
         let html = self.tera.render("report.html", &context)?;
         Ok(html)
     }
@@ -141,7 +142,8 @@ impl HtmlRenderer {
                     }
                 };
 
-                let differences = result.violations
+                let differences = result
+                    .violations
                     .iter()
                     .map(|violation| self.convert_violation(violation))
                     .collect();
@@ -174,7 +176,8 @@ impl HtmlRenderer {
                     }
                 };
 
-                let differences = result.violations
+                let differences = result
+                    .violations
                     .iter()
                     .map(|violation| self.convert_violation(violation))
                     .collect();
@@ -184,18 +187,24 @@ impl HtmlRenderer {
                 let method = parts.get(0).unwrap_or(&"").to_lowercase();
                 let path = parts.get(1).unwrap_or(&"");
 
-                let route_info = route_infos.iter()
+                let route_info = route_infos
+                    .iter()
                     .find(|r| r.method == method && r.path == *path);
 
                 // Get list of schemas with changes for filtering
-                let schemas_with_changes: std::collections::HashSet<String> = schema_results.iter()
-                    .map(|r| r.name.clone())
-                    .collect();
+                let schemas_with_changes: std::collections::HashSet<String> =
+                    schema_results.iter().map(|r| r.name.clone()).collect();
 
                 let (request_schemas, response_schemas) = if let Some(info) = route_info {
                     (
-                        self.convert_schema_references(&info.request_schemas, &schemas_with_changes),
-                        self.convert_schema_references(&info.response_schemas, &schemas_with_changes),
+                        self.convert_schema_references(
+                            &info.request_schemas,
+                            &schemas_with_changes,
+                        ),
+                        self.convert_schema_references(
+                            &info.response_schemas,
+                            &schemas_with_changes,
+                        ),
                     )
                 } else {
                     (vec![], vec![])
@@ -227,7 +236,11 @@ impl HtmlRenderer {
         }
     }
 
-    fn convert_schema_references(&self, refs: &[SchemaReference], schemas_with_changes: &std::collections::HashSet<String>) -> Vec<SchemaLinkData> {
+    fn convert_schema_references(
+        &self,
+        refs: &[SchemaReference],
+        schemas_with_changes: &std::collections::HashSet<String>,
+    ) -> Vec<SchemaLinkData> {
         refs.iter()
             .map(|r| SchemaLinkData {
                 schema_name: r.schema_name.clone(),
@@ -270,7 +283,8 @@ impl HtmlRenderer {
                     }
                 };
 
-                let differences = result.violations
+                let differences = result
+                    .violations
                     .iter()
                     .map(|violation| self.convert_violation(violation))
                     .collect();
@@ -303,21 +317,27 @@ impl HtmlRenderer {
         // Collect all changes and their schemas
         for result in results {
             // Check if this is a route (has HTTP method prefix)
-            let is_route = result.name.starts_with("GET ") || result.name.starts_with("POST ") || 
-                          result.name.starts_with("PUT ") || result.name.starts_with("DELETE ") ||
-                          result.name.starts_with("PATCH ") || result.name.starts_with("HEAD ") ||
-                          result.name.starts_with("OPTIONS ");
-            
+            let is_route = result.name.starts_with("GET ")
+                || result.name.starts_with("POST ")
+                || result.name.starts_with("PUT ")
+                || result.name.starts_with("DELETE ")
+                || result.name.starts_with("PATCH ")
+                || result.name.starts_with("HEAD ")
+                || result.name.starts_with("OPTIONS ");
+
             for violation in &result.violations {
                 let diff_data = self.convert_violation(violation);
                 let key = self.create_change_key(&diff_data);
-                
-                let entry = change_map.entry(key).or_insert_with(|| (diff_data.clone(), Vec::new(), is_route));
+
+                let entry = change_map
+                    .entry(key)
+                    .or_insert_with(|| (diff_data.clone(), Vec::new(), is_route));
                 entry.1.push(result.name.clone());
-                
+
                 // If we already have this change, merge the descriptions
                 if entry.0.description != diff_data.description {
-                    entry.0.description = self.merge_descriptions(&entry.0.description, &diff_data.description);
+                    entry.0.description =
+                        self.merge_descriptions(&entry.0.description, &diff_data.description);
                 }
             }
         }
@@ -330,7 +350,7 @@ impl HtmlRenderer {
                 // Remove duplicates from schema names
                 schema_names.sort();
                 schema_names.dedup();
-                
+
                 GroupedChange {
                     change_key: key,
                     emoji: diff.emoji,
@@ -371,19 +391,21 @@ impl HtmlRenderer {
                     return format!("Property Added (Required): {}", prop1);
                 }
             }
-        } else if desc1.contains("Property Removed") && desc2.contains("Required Properties Removed") {
+        } else if desc1.contains("Property Removed")
+            && desc2.contains("Required Properties Removed")
+        {
             if let Some(prop1) = desc1.strip_prefix("Property Removed: ") {
                 if desc2.contains(prop1) {
                     return format!("Property Removed (Required): {}", prop1);
                 }
             }
         }
-        
+
         // If descriptions are the same, return one of them
         if desc1 == desc2 {
             return desc1.to_string();
         }
-        
+
         // Otherwise, return the more specific one (shorter description usually means more specific)
         if desc1.len() < desc2.len() {
             desc1.to_string()
@@ -395,7 +417,7 @@ impl HtmlRenderer {
     fn create_change_key(&self, diff: &DifferenceData) -> String {
         // Extract property names from the description and details
         let mut property_names = Vec::new();
-        
+
         // Extract from description (e.g., "Property Added: places" -> "places")
         if diff.description.starts_with("Property Added: ") {
             if let Some(prop) = diff.description.strip_prefix("Property Added: ") {
@@ -410,22 +432,26 @@ impl HtmlRenderer {
                 property_names.push(prop.to_string());
             }
         }
-        
+
         // Extract from details (for required properties)
         for detail in &diff.details {
             if detail.property_type == "Required" {
                 property_names.push(detail.content.clone());
             }
         }
-        
+
         // Sort property names to ensure consistent grouping
         property_names.sort();
         let properties_key = property_names.join(",");
-        
+
         // Create a base change type from the description
-        let change_type = if diff.description.contains("Property Added") || diff.description.contains("Required Properties Added") {
+        let change_type = if diff.description.contains("Property Added")
+            || diff.description.contains("Required Properties Added")
+        {
             "property_added".to_string()
-        } else if diff.description.contains("Property Removed") || diff.description.contains("Required Properties Removed") {
+        } else if diff.description.contains("Property Removed")
+            || diff.description.contains("Required Properties Removed")
+        {
             "property_removed".to_string()
         } else if diff.description.contains("Property Modified") {
             "property_modified".to_string()
@@ -433,32 +459,40 @@ impl HtmlRenderer {
             // For other changes, use the full description
             diff.description.replace(" ", "_").to_lowercase()
         };
-        
-        format!("{}:{}:{}", change_type, diff.change_level_class, properties_key)
-    }
 
+        format!(
+            "{}:{}:{}",
+            change_type, diff.change_level_class, properties_key
+        )
+    }
 
     fn convert_violation(&self, violation: &RuleViolation) -> DifferenceData {
         let rule = violation.rule();
         let rule_name = rule.name();
         let description = rule.description();
-        
+
         // Map rule names to emojis and extract details
         let (emoji, details) = match rule_name {
             // Schema rules
             "SchemaAdded" => ("➕", vec![]),
             "SchemaRemoved" => ("➖", vec![]),
             "TypeChanged" => ("📝", vec![]),
-            "RequiredPropertyAdded" => ("⚠️", vec![PropertyCard {
-                emoji: "🔧".to_string(),
-                property_type: "Required".to_string(),
-                content: description.clone(),
-            }]),
-            "RequiredPropertyRemoved" => ("⚠️", vec![PropertyCard {
-                emoji: "🔧".to_string(),
-                property_type: "Optional".to_string(),
-                content: description.clone(),
-            }]),
+            "RequiredPropertyAdded" => (
+                "⚠️",
+                vec![PropertyCard {
+                    emoji: "🔧".to_string(),
+                    property_type: "Required".to_string(),
+                    content: description.clone(),
+                }],
+            ),
+            "RequiredPropertyRemoved" => (
+                "⚠️",
+                vec![PropertyCard {
+                    emoji: "🔧".to_string(),
+                    property_type: "Optional".to_string(),
+                    content: description.clone(),
+                }],
+            ),
             "PropertyAdded" => ("🔧", vec![]),
             "PropertyRemoved" => ("🔧", vec![]),
             "DescriptionChanged" => ("📄", vec![]),
@@ -500,7 +534,7 @@ impl Renderer for HtmlRenderer {
         let data = self.convert_to_template_data(results);
         let mut context = Context::new();
         context.insert("data", &data);
-        
+
         let html = self.tera.render("report.html", &context)?;
         Ok(html)
     }
@@ -509,4 +543,3 @@ impl Renderer for HtmlRenderer {
         "html"
     }
 }
-

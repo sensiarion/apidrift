@@ -1,9 +1,9 @@
 use oas3::spec::{ObjectOrReference, ObjectSchema, Operation, PathItem, Spec};
 use std::collections::{BTreeMap, HashSet};
 
-use crate::rules::{MatchResult, RuleViolation};
-use crate::rules::schema::*;
 use crate::rules::route::*;
+use crate::rules::schema::*;
+use crate::rules::{MatchResult, RuleViolation};
 
 /// Schema matcher for comparing OpenAPI schemas between versions
 pub struct SchemaMatcher<'a> {
@@ -59,27 +59,38 @@ impl<'a> SchemaMatcher<'a> {
         current: Option<&ObjectOrReference<ObjectSchema>>,
     ) -> Vec<RuleViolation> {
         let mut violations = Vec::new();
-        
+
         // Resolve references first
         let base_schema = base.and_then(|b| self.resolve_schema_ref(b, self.base_spec));
         let current_schema = current.and_then(|c| self.resolve_schema_ref(c, self.current_spec));
-        
+
         // Use SchemaRule trait for schema-level detection
         violations.extend(self.detect_schema_rule_violations::<SchemaAddedRule>(
-            schema_name, "", base_schema, current_schema
+            schema_name,
+            "",
+            base_schema,
+            current_schema,
         ));
-        
+
         violations.extend(self.detect_schema_rule_violations::<SchemaRemovedRule>(
-            schema_name, "", base_schema, current_schema
+            schema_name,
+            "",
+            base_schema,
+            current_schema,
         ));
-        
+
         // If both schemas exist, compare their details
         if base.is_some() && current.is_some() {
             if let (Some(base_ref), Some(current_ref)) = (base, current) {
-                violations.extend(self.compare_schema_details(schema_name, "", base_ref, current_ref));
+                violations.extend(self.compare_schema_details(
+                    schema_name,
+                    "",
+                    base_ref,
+                    current_ref,
+                ));
             }
         }
-        
+
         violations
     }
 
@@ -165,27 +176,43 @@ impl<'a> SchemaMatcher<'a> {
 
         // Use SchemaRule trait for detection
         violations.extend(self.detect_schema_rule_violations::<TypeChangedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
-        
-        violations.extend(self.detect_schema_rule_violations::<RequiredPropertyAddedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
-        ));
+
+        violations.extend(
+            self.detect_schema_rule_violations::<RequiredPropertyAddedRule>(
+                schema_name,
+                property_path,
+                Some(base_schema),
+                Some(current_schema),
+            ),
+        );
 
         // Use SchemaRule trait for property-level detection
         violations.extend(self.detect_schema_rule_violations::<PropertyAddedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
-        
+
         violations.extend(self.detect_schema_rule_violations::<PropertyRemovedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
-        
+
         // Detect properties that were removed from required array but still exist as optional
         let base_required: std::collections::HashSet<_> = base_schema.required.iter().collect();
-        let current_required: std::collections::HashSet<_> = current_schema.required.iter().collect();
-        let current_props_keys: std::collections::HashSet<_> = current_schema.properties.keys().collect();
-        
+        let current_required: std::collections::HashSet<_> =
+            current_schema.required.iter().collect();
+        let current_props_keys: std::collections::HashSet<_> =
+            current_schema.properties.keys().collect();
+
         for prop in base_required.difference(&current_required) {
             // Only if the property still exists (made optional rather than removed)
             if current_props_keys.contains(prop) {
@@ -223,24 +250,41 @@ impl<'a> SchemaMatcher<'a> {
         }
 
         // Use SchemaRule trait for all other detections
-        violations.extend(self.detect_schema_rule_violations::<DescriptionChangedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
-        ));
-        
+        violations.extend(
+            self.detect_schema_rule_violations::<DescriptionChangedRule>(
+                schema_name,
+                property_path,
+                Some(base_schema),
+                Some(current_schema),
+            ),
+        );
+
         violations.extend(self.detect_schema_rule_violations::<EnumValuesAddedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
-        
+
         violations.extend(self.detect_schema_rule_violations::<EnumValuesRemovedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
-        
+
         violations.extend(self.detect_schema_rule_violations::<FormatChangedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
-        
+
         violations.extend(self.detect_schema_rule_violations::<NullableChangedRule>(
-            schema_name, property_path, Some(base_schema), Some(current_schema)
+            schema_name,
+            property_path,
+            Some(base_schema),
+            Some(current_schema),
         ));
 
         // Compare array items (for now, skip Schema enum handling)
@@ -248,7 +292,6 @@ impl<'a> SchemaMatcher<'a> {
 
         violations
     }
-
 }
 
 /// Route matcher for comparing OpenAPI routes/paths between versions
@@ -358,39 +401,51 @@ impl<'a> RouteMatcher<'a> {
         let mut violations = Vec::new();
 
         // Detect route-level changes
-        violations.extend(self.detect_route_rule_violations::<RouteAddedRule>(
-            path, method, base, current,
-        ));
+        violations.extend(
+            self.detect_route_rule_violations::<RouteAddedRule>(path, method, base, current),
+        );
 
-        violations.extend(self.detect_route_rule_violations::<RouteRemovedRule>(
-            path, method, base, current,
-        ));
+        violations.extend(
+            self.detect_route_rule_violations::<RouteRemovedRule>(path, method, base, current),
+        );
 
         // If both operations exist, compare details
         if base.is_some() && current.is_some() {
-            violations.extend(self.detect_route_rule_violations::<RouteDescriptionChangedRule>(
-                path, method, base, current,
-            ));
+            violations.extend(
+                self.detect_route_rule_violations::<RouteDescriptionChangedRule>(
+                    path, method, base, current,
+                ),
+            );
 
-            violations.extend(self.detect_route_rule_violations::<RouteSummaryChangedRule>(
-                path, method, base, current,
-            ));
+            violations.extend(
+                self.detect_route_rule_violations::<RouteSummaryChangedRule>(
+                    path, method, base, current,
+                ),
+            );
 
-            violations.extend(self.detect_route_rule_violations::<RequiredParameterAddedRule>(
-                path, method, base, current,
-            ));
+            violations.extend(
+                self.detect_route_rule_violations::<RequiredParameterAddedRule>(
+                    path, method, base, current,
+                ),
+            );
 
-            violations.extend(self.detect_route_rule_violations::<ParameterRemovedRule>(
-                path, method, base, current,
-            ));
+            violations.extend(
+                self.detect_route_rule_violations::<ParameterRemovedRule>(
+                    path, method, base, current,
+                ),
+            );
 
-            violations.extend(self.detect_route_rule_violations::<ResponseStatusAddedRule>(
-                path, method, base, current,
-            ));
+            violations.extend(
+                self.detect_route_rule_violations::<ResponseStatusAddedRule>(
+                    path, method, base, current,
+                ),
+            );
 
-            violations.extend(self.detect_route_rule_violations::<ResponseStatusRemovedRule>(
-                path, method, base, current,
-            ));
+            violations.extend(
+                self.detect_route_rule_violations::<ResponseStatusRemovedRule>(
+                    path, method, base, current,
+                ),
+            );
         }
 
         violations
@@ -411,7 +466,12 @@ impl<'a> RouteMatcher<'a> {
     }
 
     /// Extract schema references from an operation
-    pub fn extract_route_schemas(&self, path: &str, method: &str, operation: &Operation) -> RouteInfo {
+    pub fn extract_route_schemas(
+        &self,
+        path: &str,
+        method: &str,
+        operation: &Operation,
+    ) -> RouteInfo {
         let mut request_schemas = Vec::new();
         let mut response_schemas = Vec::new();
 
@@ -462,10 +522,9 @@ impl<'a> RouteMatcher<'a> {
     /// Extract schema name from a schema reference (static method)
     fn extract_schema_name_static(schema: &ObjectOrReference<ObjectSchema>) -> Option<String> {
         match schema {
-            ObjectOrReference::Ref { ref_path, .. } => {
-                ref_path.strip_prefix("#/components/schemas/")
-                    .map(|s| s.to_string())
-            }
+            ObjectOrReference::Ref { ref_path, .. } => ref_path
+                .strip_prefix("#/components/schemas/")
+                .map(|s| s.to_string()),
             _ => None,
         }
     }
@@ -473,7 +532,7 @@ impl<'a> RouteMatcher<'a> {
     /// Get all routes with their schema information for the current spec
     pub fn get_all_routes_with_schemas(&self) -> Vec<RouteInfo> {
         let mut routes = Vec::new();
-        
+
         if let Some(paths) = &self.current_spec.paths {
             for (path, path_item) in paths {
                 let methods = vec!["get", "post", "put", "delete", "patch", "head", "options"];
@@ -493,8 +552,8 @@ impl<'a> RouteMatcher<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ChangeLevel;
     use crate::rules::Rule;
+    use crate::ChangeLevel;
 
     #[test]
     fn test_change_level_detection() {
@@ -510,7 +569,10 @@ mod tests {
             old_type: "String".to_string(),
             new_type: "Number".to_string(),
         };
-        assert!(matches!(type_changed_rule.change_level(), ChangeLevel::Breaking));
+        assert!(matches!(
+            type_changed_rule.change_level(),
+            ChangeLevel::Breaking
+        ));
 
         // Warnings
         let format_changed_rule = FormatChangedRule {
@@ -519,7 +581,10 @@ mod tests {
             old_format: Some("email".to_string()),
             new_format: Some("uri".to_string()),
         };
-        assert!(matches!(format_changed_rule.change_level(), ChangeLevel::Warning));
+        assert!(matches!(
+            format_changed_rule.change_level(),
+            ChangeLevel::Warning
+        ));
 
         // Non-breaking changes
         let added_rule = SchemaAddedRule {

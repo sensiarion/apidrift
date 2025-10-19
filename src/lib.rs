@@ -9,4 +9,3 @@ pub enum ChangeLevel {
     Warning,
     Change,
 }
-

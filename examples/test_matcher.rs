@@ -1,5 +1,5 @@
+use apidrift::matcher::SchemaMatcher;
 use oas3::OpenApiV3Spec;
-use openapi_diff::matcher::SchemaMatcher;
 
 fn main() {
     // Load test schemas
@@ -23,12 +23,17 @@ fn main() {
         println!("📋 Schema: {}", result.name);
         println!("🔖 Change Level: {:?}", result.change_level);
         println!();
-        
+
         if result.violations.is_empty() {
             println!("  No violations");
         } else {
             for (i, violation) in result.violations.iter().enumerate() {
-                println!("  {}. [{}] {}", i + 1, violation.name(), violation.description());
+                println!(
+                    "  {}. [{}] {}",
+                    i + 1,
+                    violation.name(),
+                    violation.description()
+                );
                 println!("      Context: {}", violation.context());
                 println!("      Level: {:?}", violation.change_level());
             }
@@ -36,4 +41,3 @@ fn main() {
         println!();
     }
 }
-

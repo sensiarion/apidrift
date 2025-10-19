@@ -78,7 +78,11 @@ impl Rule for RouteRemovedRule {
     }
 
     fn description(&self) -> String {
-        format!("Route Removed: {} {}", self.method.to_uppercase(), self.path)
+        format!(
+            "Route Removed: {} {}",
+            self.method.to_uppercase(),
+            self.path
+        )
     }
 
     fn change_level(&self) -> ChangeLevel {
@@ -285,7 +289,7 @@ impl RouteRule for RequiredParameterAddedRule {
         match (base, current) {
             (Some(base_op), Some(current_op)) => {
                 let mut rules = Vec::new();
-                
+
                 // Get parameter names from base
                 let base_params: std::collections::HashSet<_> = base_op
                     .parameters
@@ -516,4 +520,3 @@ impl RouteRule for ResponseStatusRemovedRule {
         }
     }
 }
-

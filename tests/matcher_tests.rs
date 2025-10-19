@@ -1,6 +1,6 @@
+use apidrift::matcher::SchemaMatcher;
+use apidrift::ChangeLevel;
 use oas3::OpenApiV3Spec;
-use openapi_diff::matcher::SchemaMatcher;
-use openapi_diff::ChangeLevel;
 
 fn load_test_schema(filename: &str) -> OpenApiV3Spec {
     let content = std::fs::read_to_string(filename).unwrap();
@@ -51,9 +51,10 @@ fn test_user_schema_changes() {
     assert_eq!(user_result.change_level, ChangeLevel::Breaking);
 
     // Check for specific violations
-    let has_required_added = user_result.violations.iter().any(|v| {
-        v.name() == "RequiredPropertyAdded" && v.description().contains("username")
-    });
+    let has_required_added = user_result
+        .violations
+        .iter()
+        .any(|v| v.name() == "RequiredPropertyAdded" && v.description().contains("username"));
     assert!(has_required_added, "Should detect added required property");
 
     let has_property_removed = user_result
@@ -83,10 +84,14 @@ fn test_product_schema_changes() {
     // - Changed description (non-breaking)
 
     // Check for removed required properties
-    let has_required_removed = product_result.violations.iter().any(|v| {
-        v.name() == "RequiredPropertyRemoved" && v.description().contains("price")
-    });
-    assert!(has_required_removed, "Should detect removed required property");
+    let has_required_removed = product_result
+        .violations
+        .iter()
+        .any(|v| v.name() == "RequiredPropertyRemoved" && v.description().contains("price"));
+    assert!(
+        has_required_removed,
+        "Should detect removed required property"
+    );
 
     // Check for enum values added
     let has_enum_added = product_result
@@ -159,10 +164,13 @@ fn test_order_array_items_changes() {
     // that the schema is detected (may or may not have changes depending on impl)
     let order_exists_in_base = base_schemas.contains_key("Order");
     let order_exists_in_current = current_schemas.contains_key("Order");
-    
+
     assert!(order_exists_in_base, "Order should exist in base schema");
-    assert!(order_exists_in_current, "Order should exist in current schema");
-    
+    assert!(
+        order_exists_in_current,
+        "Order should exist in current schema"
+    );
+
     // TODO: Uncomment when array items comparison is fully implemented
     // let order_result = results.iter().find(|r| r.name == "Order").unwrap();
     // assert_eq!(order_result.change_level, ChangeLevel::Breaking);
@@ -195,4 +203,3 @@ fn test_change_level_hierarchy() {
         }
     }
 }
-
