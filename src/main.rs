@@ -1,40 +1,198 @@
+use clap::Parser;
 use oas3::OpenApiV3Spec;
 use openapi_diff::matcher;
 use openapi_diff::render::html::HtmlRenderer;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-// TODO propper exit code and CLI wrapper for utlity
+/// OpenAPI Diff Tool - Compare two OpenAPI specifications and generate a detailed diff report
+#[derive(Parser)]
+#[command(name = "openapi_diff")]
+#[command(version = "0.1.0")]
+#[command(about = "Compare two OpenAPI specifications and generate a detailed diff report", long_about = None)]
+#[command(author = "OpenAPI Diff Contributors")]
+struct Cli {
+    /// Path to the base OpenAPI specification file (JSON or YAML format)
+    #[arg(value_name = "BASE_SPEC")]
+    base_spec: PathBuf,
 
+    /// Path to the current OpenAPI specification file (JSON or YAML format)
+    #[arg(value_name = "CURRENT_SPEC")]
+    current_spec: PathBuf,
 
-fn parse_openapi(path: &str) -> OpenApiV3Spec {
-    let openapi_content =
-        match std::fs::read_to_string(path)
-        {
-            Ok(res) => res,
-            Err(err) => {
-                panic!("Failed to read file \"{path}\". Got error: {err}")
-            }
+    /// Output HTML report file path
+    #[arg(short = 'o', long = "output", value_name = "FILE", default_value = "openapi_diff_report.html")]
+    output: PathBuf,
+
+    /// Open the report in browser after generation
+    #[arg(long = "open")]
+    open: bool,
+
+    /// Open the report in Chrome (requires --open flag)
+    #[arg(long = "chrome")]
+    chrome: bool,
+
+    /// Enable verbose output
+    #[arg(short = 'v', long = "verbose")]
+    verbose: bool,
+}
+
+fn detect_format(path: &Path) -> Result<&'static str, String> {
+    let extension = path.extension()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| format!("Unable to determine file format for: {}", path.display()))?;
+    
+    match extension.to_lowercase().as_str() {
+        "json" => Ok("json"),
+        "yaml" | "yml" => Ok("yaml"),
+        _ => Err(format!("Unsupported file format '{}'. Supported formats: json, yaml, yml", extension))
+    }
+}
+
+fn parse_openapi(path: &Path, verbose: bool) -> Result<OpenApiV3Spec, String> {
+    if verbose {
+        println!("📖 Reading OpenAPI spec from: {}", path.display());
+    }
+
+    let openapi_content = fs::read_to_string(path)
+        .map_err(|err| format!("Failed to read file \"{}\". Error: {}", path.display(), err))?;
+
+    let format = detect_format(path)?;
+    
+    if verbose {
+        println!("   Detected format: {}", format.to_uppercase());
+    }
+
+    match format {
+        "json" => {
+            oas3::from_json(openapi_content)
+                .map_err(|err| format!("Invalid OpenAPI JSON schema in \"{}\". Error: {}", path.display(), err))
+        }
+        "yaml" => {
+            oas3::from_yaml(openapi_content)
+                .map_err(|err| format!("Invalid OpenAPI YAML schema in \"{}\". Error: {}", path.display(), err))
+        }
+        _ => unreachable!()
+    }
+}
+
+fn open_in_browser(path: &Path, use_chrome: bool) {
+    println!("🌐 Opening report in browser...");
+    
+    // Try Chrome if requested
+    if use_chrome {
+        let chrome_result = if cfg!(target_os = "macos") {
+            std::process::Command::new("open")
+                .arg("-a")
+                .arg("Google Chrome")
+                .arg(path)
+                .spawn()
+        } else if cfg!(target_os = "windows") {
+            std::process::Command::new("cmd")
+                .args(["/C", "start", "chrome", &path.display().to_string()])
+                .spawn()
+        } else {
+            // Linux/Unix
+            std::process::Command::new("google-chrome")
+                .arg(path)
+                .spawn()
+                .or_else(|_| {
+                    std::process::Command::new("chromium")
+                        .arg(path)
+                        .spawn()
+                })
+                .or_else(|_| {
+                    std::process::Command::new("chromium-browser")
+                        .arg(path)
+                        .spawn()
+                })
         };
 
-    match oas3::from_json(openapi_content) {
-        Ok(spec) => spec,
-        Err(err) => panic!("Wrong openapi schema \"{path}\". Got error: {err}"),
+        match chrome_result {
+            Ok(_) => {
+                println!("✨ Opened in Chrome!");
+                return;
+            }
+            Err(e) => {
+                eprintln!("⚠️  Failed to open Chrome: {}", e);
+                println!("Falling back to default browser...");
+            }
+        }
+    }
+    
+    // Try default browser using the 'open' crate
+    if open::that(path).is_ok() {
+        println!("✨ Opened in default browser!");
+    } else {
+        eprintln!("⚠️  Failed to open browser automatically");
+        println!("Please open the file manually: {}", path.display());
     }
 }
 
 fn main() {
-    println!("🔍 OpenAPI Diff Tool\n");
+    let cli = Cli::parse();
 
-    let base = parse_openapi("/Users/mansur/projects/rust/openapi_diff/base_openapi.json");
-    let current = parse_openapi("/Users/mansur/projects/rust/openapi_diff/current_openapi.json");
+    println!("🔍 OpenAPI Diff Tool v0.1.0\n");
+
+    // Validate input files exist
+    if !cli.base_spec.exists() {
+        eprintln!("❌ Error: Base specification file does not exist: {}", cli.base_spec.display());
+        std::process::exit(1);
+    }
+    
+    if !cli.current_spec.exists() {
+        eprintln!("❌ Error: Current specification file does not exist: {}", cli.current_spec.display());
+        std::process::exit(1);
+    }
+
+    // Parse OpenAPI specifications
+    if cli.verbose {
+        println!("🔄 Parsing OpenAPI specifications...\n");
+    }
+
+    let base = match parse_openapi(&cli.base_spec, cli.verbose) {
+        Ok(spec) => spec,
+        Err(err) => {
+            eprintln!("❌ Error parsing base specification: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    let current = match parse_openapi(&cli.current_spec, cli.verbose) {
+        Ok(spec) => spec,
+        Err(err) => {
+            eprintln!("❌ Error parsing current specification: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    if cli.verbose {
+        println!("✅ Successfully parsed both specifications\n");
+    }
 
     // Get schemas from both versions
-    let base_schemas = &base.components.as_ref().unwrap().schemas;
-    let current_schemas = &current.components.as_ref().unwrap().schemas;
+    let empty_schemas = Default::default();
+    let base_schemas = base.components.as_ref()
+        .map(|c| &c.schemas)
+        .unwrap_or(&empty_schemas);
+    let current_schemas = current.components.as_ref()
+        .map(|c| &c.schemas)
+        .unwrap_or(&empty_schemas);
+
+    if base_schemas.is_empty() {
+        eprintln!("⚠️  Warning: Base specification has no schemas defined");
+    }
+    if current_schemas.is_empty() {
+        eprintln!("⚠️  Warning: Current specification has no schemas defined");
+    }
 
     // Create schema matcher and compare schemas
-    let schema_matcher = matcher::SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
+    let schema_matcher = matcher::SchemaMatcher::new(
+        base_schemas,
+        current_schemas,
+        &base,
+        &current,
+    );
     let schema_results = schema_matcher.match_schemas();
 
     // Create route matcher and compare routes
@@ -44,52 +202,57 @@ fn main() {
 
     // Display stats
     println!("=== Schema Comparison Stats ===\n");
-    println!("Base schemas: {}", base_schemas.len());
-    println!("Current schemas: {}", current_schemas.len());
-    println!("Schemas with changes: {}", schema_results.len());
+    println!("  Base schemas:         {}", base_schemas.len());
+    println!("  Current schemas:      {}", current_schemas.len());
+    println!("  Schemas with changes: {}", schema_results.len());
     
     println!("\n=== Route Comparison Stats ===\n");
-    println!("Routes with changes: {}", route_results.len());
-    println!("Total routes: {}", route_infos.len());
+    println!("  Total routes:         {}", route_infos.len());
+    println!("  Routes with changes:  {}", route_results.len());
     
     // Render to HTML
     println!("\n📄 Generating HTML report...");
-    let renderer = HtmlRenderer::new().expect("Failed to create HTML renderer");
-    let html_output = renderer.render_with_routes(&schema_results, &route_results, &route_infos).expect("Failed to render HTML");
+    let renderer = match HtmlRenderer::new() {
+        Ok(r) => r,
+        Err(err) => {
+            eprintln!("❌ Error: Failed to create HTML renderer: {}", err);
+            std::process::exit(1);
+        }
+    };
+
+    let html_output = match renderer.render_with_routes(&schema_results, &route_results, &route_infos) {
+        Ok(html) => html,
+        Err(err) => {
+            eprintln!("❌ Error: Failed to render HTML: {}", err);
+            std::process::exit(1);
+        }
+    };
     
     // Write to file
-    let output_path = Path::new("openapi_diff_report.html");
-    fs::write(output_path, html_output).expect("Failed to write HTML file");
-    
-    println!("✅ Report generated: {}", output_path.display());
-    
-    // Open in Chrome
-    println!("🌐 Opening report in Chrome...");
-    let absolute_path = std::env::current_dir()
-        .expect("Failed to get current directory")
-        .join(output_path)
-        .canonicalize()
-        .expect("Failed to get canonical path");
-    
-    match std::process::Command::new("open")
-        .arg("-a")
-        .arg("Google Chrome")
-        .arg(&absolute_path)
-        .spawn()
-    {
-        Ok(_) => println!("✨ Done!"),
-        Err(e) => {
-            eprintln!("⚠️  Failed to open in Chrome: {}", e);
-            println!("Trying default browser...");
-            if let Err(e) = std::process::Command::new("open")
-                .arg(&absolute_path)
-                .spawn()
-            {
-                eprintln!("⚠️  Failed to open file: {}", e);
-                println!("Please open the file manually: {}", absolute_path.display());
-            } else {
-                println!("✨ Opened in default browser!");
-            }
-        }
+    if let Err(err) = fs::write(&cli.output, html_output) {
+        eprintln!("❌ Error: Failed to write HTML file: {}", err);
+        std::process::exit(1);
     }
+    
+    let absolute_path = match std::env::current_dir()
+        .and_then(|cwd| cwd.join(&cli.output).canonicalize())
+    {
+        Ok(path) => path,
+        Err(_) => cli.output.clone(),
+    };
+    
+    println!("✅ Report generated: {}", absolute_path.display());
+    
+    // Validate flag combination
+    if cli.chrome && !cli.open {
+        println!("\n⚠️  Warning: --chrome flag requires --open flag to take effect");
+    }
+    
+    // Open in browser if --open flag is set
+    if cli.open {
+        println!();
+        open_in_browser(&absolute_path, cli.chrome);
+    }
+
+    println!("\n✨ Done!");
 }
