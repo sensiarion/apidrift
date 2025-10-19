@@ -172,8 +172,8 @@
         }
 
         .difference {
-            margin-bottom: 8px;
-            padding: 10px 12px;
+            margin-bottom: 6px;
+            padding: 8px 10px;
             background-color: #f9fafb;
             border-radius: 4px;
             border-left: 2px solid #49cc90;
@@ -198,52 +198,53 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
         .difference-description {
             font-weight: 500;
             color: #1f2937;
-            font-size: 0.875rem;
+            font-size: 0.8rem;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         }
 
         .property-cards {
             margin-left: 16px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 8px;
-            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
         }
 
         .property-card {
-            background: white;
-            border: 1px solid #e5e7eb;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 4px;
-            padding: 8px 10px;
-            font-size: 0.8rem;
+            padding: 4px 8px;
+            font-size: 0.75rem;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            color: #475569;
         }
 
         .property-card .property-emoji {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             flex-shrink: 0;
         }
 
         .property-card .property-type {
             font-weight: 600;
-            color: #6b7280;
+            color: #64748b;
             font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.3px;
-            min-width: 60px;
         }
 
         .property-card .property-content {
-            color: #374151;
+            color: #1e293b;
             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
         }
 
         .help-section {
@@ -313,6 +314,10 @@
             transform: rotate(90deg);
         }
 
+        .grouped-card.expanded .toggle-icon {
+            transform: rotate(90deg);
+        }
+
         .no-changes {
             text-align: center;
             padding: 40px 20px;
@@ -322,6 +327,106 @@
         .no-changes h2 {
             font-size: 1.25rem;
             margin-bottom: 8px;
+        }
+
+        .grouped-section {
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .grouped-card {
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .grouped-header {
+            padding: 12px 16px;
+            border-left: 3px solid #49cc90;
+            cursor: pointer;
+            transition: background-color 0.15s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .grouped-header:hover {
+            background-color: #f5f7fa;
+        }
+
+        .grouped-header.breaking {
+            border-left-color: #f93e3e;
+        }
+
+        .grouped-header.warning {
+            border-left-color: #f7981c;
+        }
+
+        .grouped-header.change {
+            border-left-color: #49cc90;
+        }
+
+        .grouped-change-description {
+            font-weight: 500;
+            color: #1f2937;
+            font-size: 0.875rem;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grouped-change-description .change-emoji {
+            font-size: 1.1rem;
+        }
+
+        .count-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background-color: #e2e8f0;
+            color: #475569;
+            margin-left: 8px;
+        }
+
+        .grouped-body {
+            padding: 8px 16px 12px 16px;
+            display: none;
+        }
+
+        .grouped-card.expanded .grouped-body {
+            display: block;
+        }
+
+        .schema-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .schema-chip {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #334155;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         }
     </style>
 </head>
@@ -408,7 +513,47 @@
             </div>
         </div>
 
+        {% if data.grouped_changes | length > 0 %}
+        <div class="grouped-section">
+            <h2 class="section-title">🔄 Repeating Changes Across Schemas</h2>
+            <div class="grouped-changes">
+                {% for change in data.grouped_changes %}
+                <div class="grouped-card">
+                    <div class="grouped-header {{ change.change_level_class }}">
+                        <div class="grouped-change-description">
+                            <span class="toggle-icon">▶</span>
+                            <span class="change-emoji">{{ change.emoji }}</span>
+                            <span>{{ change.description }}</span>
+                            <span class="count-badge">{{ change.schema_names | length }} schemas</span>
+                        </div>
+                        <span class="badge {{ change.change_level_class }}">{{ change.change_level }}</span>
+                    </div>
+                    <div class="grouped-body">
+                        {% if change.details | length > 0 %}
+                        <div class="property-cards">
+                            {% for detail in change.details %}
+                            <div class="property-card">
+                                <span class="property-emoji">{{ detail.emoji }}</span>
+                                <span class="property-type">{{ detail.property_type }}</span>
+                                <span class="property-content">{{ detail.content }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="schema-chips">
+                            {% for schema_name in change.schema_names %}
+                            <div class="schema-chip">{{ schema_name }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         {% if data.schemas | length > 0 %}
+            <h2 class="section-title">📋 All Schema Changes</h2>
             <div class="schemas">
                 {% for schema in data.schemas %}
                 <div class="schema-card">
@@ -459,6 +604,14 @@
         document.querySelectorAll('.schema-header').forEach(header => {
             header.addEventListener('click', function(e) {
                 const card = this.closest('.schema-card');
+                card.classList.toggle('expanded');
+            });
+        });
+
+        // Click on grouped header to expand/collapse
+        document.querySelectorAll('.grouped-header').forEach(header => {
+            header.addEventListener('click', function(e) {
+                const card = this.closest('.grouped-card');
                 card.classList.toggle('expanded');
             });
         });
