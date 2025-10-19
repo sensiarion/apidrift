@@ -1,6 +1,6 @@
 use oas3::OpenApiV3Spec;
 use openapi_diff::matcher;
-use openapi_diff::render::{html::HtmlRenderer, Renderer};
+use openapi_diff::render::html::HtmlRenderer;
 use std::fs;
 use std::path::Path;
 
@@ -33,20 +33,29 @@ fn main() {
     let base_schemas = &base.components.as_ref().unwrap().schemas;
     let current_schemas = &current.components.as_ref().unwrap().schemas;
 
-    // Create matcher and compare schemas
-    let matcher = matcher::SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
-    let results = matcher.match_schemas();
+    // Create schema matcher and compare schemas
+    let schema_matcher = matcher::SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
+    let schema_results = schema_matcher.match_schemas();
+
+    // Create route matcher and compare routes
+    let route_matcher = matcher::RouteMatcher::new(&base, &current);
+    let route_results = route_matcher.match_routes();
+    let route_infos = route_matcher.get_all_routes_with_schemas();
 
     // Display stats
     println!("=== Schema Comparison Stats ===\n");
     println!("Base schemas: {}", base_schemas.len());
     println!("Current schemas: {}", current_schemas.len());
-    println!("Schemas with changes: {}", results.len());
+    println!("Schemas with changes: {}", schema_results.len());
+    
+    println!("\n=== Route Comparison Stats ===\n");
+    println!("Routes with changes: {}", route_results.len());
+    println!("Total routes: {}", route_infos.len());
     
     // Render to HTML
     println!("\n📄 Generating HTML report...");
     let renderer = HtmlRenderer::new().expect("Failed to create HTML renderer");
-    let html_output = renderer.render(&results).expect("Failed to render HTML");
+    let html_output = renderer.render_with_routes(&schema_results, &route_results, &route_infos).expect("Failed to render HTML");
     
     // Write to file
     let output_path = Path::new("openapi_diff_report.html");

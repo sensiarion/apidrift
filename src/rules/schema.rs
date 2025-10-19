@@ -217,6 +217,7 @@ pub struct PropertyRemovedRule {
     pub property_path: String,
     pub property_name: String,
     pub was_required: bool,
+    pub totally_removed: bool, // true if removed entirely, false if just made optional
 }
 
 impl Rule for PropertyRemovedRule {
@@ -230,17 +231,19 @@ impl Rule for PropertyRemovedRule {
     
     fn description(&self) -> String {
         if self.was_required {
-            format!("Required property '{}' was removed (now optional)", self.property_name)
+            format!("Required property '{}' was removed", self.property_name)
         } else {
             format!("Property '{}' was removed", self.property_name)
         }
     }
     
     fn change_level(&self) -> ChangeLevel {
-        if self.was_required {
-            ChangeLevel::Change  // Removing required property is non-breaking (more permissive)
+        if self.totally_removed {
+            // Property was completely removed - breaking change
+            ChangeLevel::Breaking
         } else {
-            ChangeLevel::Breaking  // Removing optional property is breaking
+            // Property was just made optional (from required to non-required) - non-breaking
+            ChangeLevel::Change
         }
     }
     
@@ -274,13 +277,21 @@ impl SchemaRule for PropertyRemovedRule {
                 let current_props: HashSet<_> = current_schema.properties.keys().collect();
                 let base_required: HashSet<_> = base_schema.required.iter().collect();
                 
+                // Only detect properties that are completely removed from the properties map
+                // Properties that are just removed from required (but still exist) are handled separately in matcher.rs
                 base_props
                     .difference(&current_props)
-                    .map(|prop_name| PropertyRemovedRule {
-                        schema_name: schema_name.to_string(),
-                        property_path: property_path.to_string(),
-                        property_name: (*prop_name).clone(),
-                        was_required: base_required.contains(prop_name),
+                    .map(|prop_name| {
+                        // Verify property is completely removed from schema
+                        let is_totally_removed = !current_schema.properties.contains_key(*prop_name);
+                        
+                        PropertyRemovedRule {
+                            schema_name: schema_name.to_string(),
+                            property_path: property_path.to_string(),
+                            property_name: (*prop_name).clone(),
+                            was_required: base_required.contains(prop_name),
+                            totally_removed: is_totally_removed,
+                        }
                     })
                     .collect()
             }
@@ -837,6 +848,7 @@ mod tests {
         assert_eq!(detected[0].name(), "PropertyRemoved");
         assert_eq!(detected[0].property_name, "email");
         assert_eq!(detected[0].was_required, false);
+        assert_eq!(detected[0].totally_removed, true); // Property is completely removed
         assert_eq!(detected[0].change_level(), ChangeLevel::Breaking);
     }
 
@@ -858,7 +870,144 @@ mod tests {
         assert_eq!(detected[0].name(), "RequiredPropertyRemoved");
         assert_eq!(detected[0].property_name, "email");
         assert_eq!(detected[0].was_required, true);
-        assert_eq!(detected[0].change_level(), ChangeLevel::Change);
+        assert_eq!(detected[0].totally_removed, true); // Property is completely removed
+        assert_eq!(detected[0].change_level(), ChangeLevel::Breaking);
+    }
+
+    #[test]
+    fn test_property_made_optional() {
+        // Test when a property goes from required to optional (not removed)
+        let rule = PropertyRemovedRule {
+            schema_name: "User".to_string(),
+            property_path: "".to_string(),
+            property_name: "email".to_string(),
+            was_required: true,
+            totally_removed: false, // Property still exists, just made optional
+        };
+        
+        assert_eq!(rule.name(), "RequiredPropertyRemoved");
+        assert_eq!(rule.change_level(), ChangeLevel::Change); // Should be Change, not Breaking
+        assert_eq!(rule.description(), "Required property 'email' was removed");
+    }
+
+    #[test]
+    fn test_property_still_exists_but_not_required() {
+        // Test that a property that still exists in properties but is removed from required
+        // is NOT detected by PropertyRemovedRule::detect (handled separately in matcher.rs)
+        let mut base = create_test_schema(None);
+        let mut current = create_test_schema(None);
+        
+        // Add property to both base and current
+        base.properties.insert(
+            "email".to_string(),
+            oas3::spec::ObjectOrReference::Object(create_test_schema(Some(SchemaTypeSet::Single(SchemaType::String)))),
+        );
+        current.properties.insert(
+            "email".to_string(),
+            oas3::spec::ObjectOrReference::Object(create_test_schema(Some(SchemaTypeSet::Single(SchemaType::String)))),
+        );
+        
+        // Make it required in base but not in current
+        base.required.push("email".to_string());
+        
+        // PropertyRemovedRule::detect should NOT detect this because the property still exists
+        let detected = PropertyRemovedRule::detect("User", "", Some(&base), Some(&current));
+        
+        assert_eq!(detected.len(), 0, "Property still exists, should not be detected as removed");
+    }
+
+    #[test]
+    fn test_multiple_properties_removed() {
+        // Test multiple properties being removed at once
+        let mut base = create_test_schema(None);
+        let current = create_test_schema(None);
+        
+        // Add multiple properties to base
+        base.properties.insert(
+            "email".to_string(),
+            oas3::spec::ObjectOrReference::Object(create_test_schema(Some(SchemaTypeSet::Single(SchemaType::String)))),
+        );
+        base.properties.insert(
+            "phone".to_string(),
+            oas3::spec::ObjectOrReference::Object(create_test_schema(Some(SchemaTypeSet::Single(SchemaType::String)))),
+        );
+        base.properties.insert(
+            "address".to_string(),
+            oas3::spec::ObjectOrReference::Object(create_test_schema(Some(SchemaTypeSet::Single(SchemaType::String)))),
+        );
+        
+        // Make email and phone required
+        base.required.push("email".to_string());
+        base.required.push("phone".to_string());
+        
+        let detected = PropertyRemovedRule::detect("User", "", Some(&base), Some(&current));
+        
+        assert_eq!(detected.len(), 3, "Should detect all 3 removed properties");
+        
+        // Check that all are marked as totally_removed
+        for rule in &detected {
+            assert_eq!(rule.totally_removed, true, "All removed properties should be marked as totally_removed");
+            assert_eq!(rule.change_level(), ChangeLevel::Breaking, "Removing properties should be breaking");
+        }
+        
+        // Check specific properties
+        let email_rule = detected.iter().find(|r| r.property_name == "email").unwrap();
+        assert_eq!(email_rule.was_required, true);
+        
+        let phone_rule = detected.iter().find(|r| r.property_name == "phone").unwrap();
+        assert_eq!(phone_rule.was_required, true);
+        
+        let address_rule = detected.iter().find(|r| r.property_name == "address").unwrap();
+        assert_eq!(address_rule.was_required, false);
+    }
+
+    #[test]
+    fn test_totally_removed_true_breaking_change() {
+        // Test that totally_removed = true results in Breaking change level
+        let rule = PropertyRemovedRule {
+            schema_name: "User".to_string(),
+            property_path: "".to_string(),
+            property_name: "email".to_string(),
+            was_required: false,
+            totally_removed: true, // Property completely removed
+        };
+        
+        assert_eq!(rule.change_level(), ChangeLevel::Breaking);
+        assert_eq!(rule.name(), "PropertyRemoved");
+    }
+
+    #[test]
+    fn test_totally_removed_false_change_level() {
+        // Test that totally_removed = false (property made optional) results in Change level
+        let rule = PropertyRemovedRule {
+            schema_name: "User".to_string(),
+            property_path: "".to_string(),
+            property_name: "email".to_string(),
+            was_required: true,
+            totally_removed: false, // Property still exists, just optional now
+        };
+        
+        assert_eq!(rule.change_level(), ChangeLevel::Change);
+        assert_eq!(rule.name(), "RequiredPropertyRemoved");
+    }
+
+    #[test]
+    fn test_property_removed_with_nested_path() {
+        // Test property removal with nested path
+        let mut base = create_test_schema(None);
+        let current = create_test_schema(None);
+        
+        base.properties.insert(
+            "nested_field".to_string(),
+            oas3::spec::ObjectOrReference::Object(create_test_schema(Some(SchemaTypeSet::Single(SchemaType::String)))),
+        );
+        
+        let detected = PropertyRemovedRule::detect("User", "address", Some(&base), Some(&current));
+        
+        assert_eq!(detected.len(), 1);
+        assert_eq!(detected[0].property_path, "address");
+        assert_eq!(detected[0].property_name, "nested_field");
+        assert_eq!(detected[0].totally_removed, true);
     }
 
     #[test]

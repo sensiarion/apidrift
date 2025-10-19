@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenAPI Schema Changes</title>
+    <title>OpenAPI Diff Report</title>
     <style>
         * {
             margin: 0;
@@ -433,13 +433,64 @@
             color: #334155;
             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
         }
+
+        .schema-chip:hover {
+            background: #e2e8f0;
+            border-color: #94a3b8;
+        }
+
+        .schema-chip-link {
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .schema-chip-active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #1e40af;
+        }
+
+        .schema-chip-active:hover {
+            background: #dbeafe;
+            border-color: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .schema-chip-no-changes {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #94a3b8;
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .routes-section {
+            margin-bottom: 32px;
+        }
+
+        /* Blink animation */
+        @keyframes blink-highlight {
+            0%, 100% {
+                background-color: transparent;
+            }
+            25%, 75% {
+                background-color: rgba(59, 130, 246, 0.1);
+            }
+            50% {
+                background-color: rgba(59, 130, 246, 0.2);
+            }
+        }
+
+        .blink-animation {
+            animation: blink-highlight 1.5s ease-in-out;
+        }
     </style>
 </head>
 <body>
     <header>
         <div class="container">
-            <h1>OpenAPI Schema Changes</h1>
-            <p>Detailed comparison of schema changes between versions</p>
+            <h1>OpenAPI Diff Report</h1>
+            <p>Detailed comparison of routes and schemas between versions</p>
         </div>
     </header>
 
@@ -520,16 +571,20 @@
 
         {% if data.grouped_changes | length > 0 %}
         <div class="grouped-section">
-            <h2 class="section-title">🔄 Repeating Changes Across Schemas</h2>
+            <h2 class="section-title">📊 Brief Changes</h2>
             <div class="grouped-changes">
                 {% for change in data.grouped_changes %}
                 <div class="grouped-card">
                     <div class="grouped-header {{ change.change_level_class }}">
                         <div class="grouped-change-description">
                             <span class="toggle-icon">▶</span>
-                            <span class="change-emoji">{{ change.emoji }}</span>
+                            {% if change.is_route_change %}
+                            <span class="change-emoji">🛣️</span>
+                            {% else %}
+                            <span class="change-emoji">🔧</span>
+                            {% endif %}
                             <span>{{ change.description }}</span>
-                            <span class="count-badge">{{ change.schema_names | length }} schemas</span>
+                            <span class="count-badge">{{ change.schema_names | length }} {% if change.is_route_change %}routes{% else %}schemas{% endif %}</span>
                         </div>
                         <span class="badge {{ change.change_level_class }}">{{ change.change_level }}</span>
                     </div>
@@ -547,7 +602,11 @@
                         {% endif %}
                         <div class="schema-chips">
                             {% for schema_name in change.schema_names %}
-                            <div class="schema-chip">{{ schema_name }}</div>
+                            {% if change.is_route_change %}
+                            <a href="#route-{{ schema_name | replace(from=' ', to='-') }}" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">{{ schema_name }}</a>
+                            {% else %}
+                            <a href="#schema-{{ schema_name }}" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">{{ schema_name }}</a>
+                            {% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -557,11 +616,115 @@
         </div>
         {% endif %}
 
+        {% if data.routes | length > 0 %}
+        <div class="routes-section">
+            <h2 class="section-title">🛣️ Route Changes</h2>
+            <div class="routes">
+                {% for route in data.routes %}
+                <div class="schema-card" id="route-{{ route.name | replace(from=' ', to='-') }}">
+                    <div class="schema-header {{ route.change_level_class }}">
+                        <div>
+                            <span class="toggle-icon">▶</span>
+                            <span class="schema-name">{{ route.method }} {{ route.path }}</span>
+                        </div>
+                        <span class="badge {{ route.change_level_class }}">{{ route.change_level }}</span>
+                    </div>
+                    <div class="schema-body">
+                        {% for diff in route.differences %}
+                        <div class="difference {{ diff.change_level_class }}">
+                            <div class="difference-header">
+                                <span class="difference-description">
+                                    <span style="margin-right: 6px;">{{ diff.emoji }}</span>
+                                    {{ diff.description }}
+                                </span>
+                                <span class="badge {{ diff.change_level_class }}">{{ diff.change_level }}</span>
+                            </div>
+                            {% if diff.details | length > 0 %}
+                            <div class="property-cards">
+                                {% for detail in diff.details %}
+                                <div class="property-card">
+                                    <span class="property-emoji">{{ detail.emoji }}</span>
+                                    <span class="property-type">{{ detail.property_type }}</span>
+                                    <span class="property-content">{{ detail.content }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        
+                        {% set has_request_changes = false %}
+                        {% set has_response_changes = false %}
+                        {% for schema in route.request_schemas %}
+                            {% if schema.has_changes %}
+                                {% set_global has_request_changes = true %}
+                            {% endif %}
+                        {% endfor %}
+                        {% for schema in route.response_schemas %}
+                            {% if schema.has_changes %}
+                                {% set_global has_response_changes = true %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if (route.request_schemas | length > 0) or (route.response_schemas | length > 0) %}
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                            <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; font-weight: 600;">Related Schemas</h4>
+                            
+                            {% if route.request_schemas | length > 0 %}
+                            <div style="margin-bottom: 8px;">
+                                <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📥 Request:</span>
+                                <div class="schema-chips" style="margin-top: 4px;">
+                                    {% for schema in route.request_schemas %}
+                                    {% if schema.has_changes %}
+                                    <a href="#schema-{{ schema.schema_name }}" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                        {{ schema.schema_name }}
+                                        <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.content_type }})</span>
+                                    </a>
+                                    {% else %}
+                                    <div class="schema-chip schema-chip-no-changes" title="No changes detected in this schema">
+                                        🔒 {{ schema.schema_name }}
+                                        <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.content_type }})</span>
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if route.response_schemas | length > 0 %}
+                            <div>
+                                <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📤 Response:</span>
+                                <div class="schema-chips" style="margin-top: 4px;">
+                                    {% for schema in route.response_schemas %}
+                                    {% if schema.has_changes %}
+                                    <a href="#schema-{{ schema.schema_name }}" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                        {{ schema.schema_name }}
+                                        <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.status_code }})</span>
+                                    </a>
+                                    {% else %}
+                                    <div class="schema-chip schema-chip-no-changes" title="No changes detected in this schema">
+                                        🔒 {{ schema.schema_name }}
+                                        <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.status_code }})</span>
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         {% if data.schemas | length > 0 %}
-            <h2 class="section-title">📋 All Schema Changes</h2>
+            <h2 class="section-title">📋 Schema Changes</h2>
             <div class="schemas">
                 {% for schema in data.schemas %}
-                <div class="schema-card">
+                <div class="schema-card" id="schema-{{ schema.name }}">
                     <div class="schema-header {{ schema.change_level_class }}">
                         <div>
                             <span class="toggle-icon">▶</span>
@@ -627,6 +790,61 @@
                 const section = this.closest('.help-section');
                 section.classList.toggle('expanded');
             });
+        });
+
+        // Function to expand target and add blink animation
+        function expandAndBlink(element) {
+            // Prevent default anchor behavior temporarily
+            event.preventDefault();
+            
+            // Get the target ID from href
+            const href = element.getAttribute('href');
+            if (!href) return;
+            
+            const targetId = href.substring(1); // Remove the # 
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                // Expand the card if it's not already expanded
+                if (!targetElement.classList.contains('expanded')) {
+                    targetElement.classList.add('expanded');
+                }
+                
+                // Scroll to the element
+                targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Add blink animation
+                targetElement.classList.add('blink-animation');
+                
+                // Remove the animation class after it completes
+                setTimeout(() => {
+                    targetElement.classList.remove('blink-animation');
+                }, 1500);
+            }
+            
+            return false;
+        }
+
+        // Handle hash navigation on page load
+        window.addEventListener('load', function() {
+            if (window.location.hash) {
+                const targetId = window.location.hash.substring(1);
+                const targetElement = document.getElementById(targetId);
+                
+                if (targetElement) {
+                    setTimeout(() => {
+                        if (!targetElement.classList.contains('expanded')) {
+                            targetElement.classList.add('expanded');
+                        }
+                        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetElement.classList.add('blink-animation');
+                        
+                        setTimeout(() => {
+                            targetElement.classList.remove('blink-animation');
+                        }, 1500);
+                    }, 100);
+                }
+            }
         });
     </script>
 </body>

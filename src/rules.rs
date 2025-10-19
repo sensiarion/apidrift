@@ -1,4 +1,5 @@
 pub mod schema;
+pub mod route;
 
 use crate::ChangeLevel;
 

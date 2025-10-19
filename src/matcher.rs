@@ -1,8 +1,9 @@
-use oas3::spec::{ObjectOrReference, ObjectSchema, Spec};
-use std::collections::BTreeMap;
+use oas3::spec::{ObjectOrReference, ObjectSchema, Operation, PathItem, Spec};
+use std::collections::{BTreeMap, HashSet};
 
 use crate::rules::{MatchResult, RuleViolation};
 use crate::rules::schema::*;
+use crate::rules::route::*;
 
 /// Schema matcher for comparing OpenAPI schemas between versions
 pub struct SchemaMatcher<'a> {
@@ -193,6 +194,7 @@ impl<'a> SchemaMatcher<'a> {
                     property_path: property_path.to_string(),
                     property_name: (*prop).clone(),
                     was_required: true,
+                    totally_removed: false, // Property still exists, just made optional
                 })));
             }
         }
@@ -247,6 +249,245 @@ impl<'a> SchemaMatcher<'a> {
         violations
     }
 
+}
+
+/// Route matcher for comparing OpenAPI routes/paths between versions
+pub struct RouteMatcher<'a> {
+    base_spec: &'a Spec,
+    current_spec: &'a Spec,
+}
+
+/// Represents route information with associated schemas
+#[derive(Debug, Clone)]
+pub struct RouteInfo {
+    pub path: String,
+    pub method: String,
+    pub request_schemas: Vec<SchemaReference>,
+    pub response_schemas: Vec<SchemaReference>,
+}
+
+/// Reference to a schema used in a route
+#[derive(Debug, Clone)]
+pub struct SchemaReference {
+    pub schema_name: String,
+    pub content_type: String,
+    pub location: SchemaLocation,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SchemaLocation {
+    RequestBody,
+    Response(String), // Status code
+}
+
+impl<'a> RouteMatcher<'a> {
+    pub fn new(base_spec: &'a Spec, current_spec: &'a Spec) -> Self {
+        Self {
+            base_spec,
+            current_spec,
+        }
+    }
+
+    /// Match routes between base and current versions
+    pub fn match_routes(&self) -> Vec<MatchResult> {
+        let mut results = Vec::new();
+
+        // Get all paths from both versions
+        let base_paths = self.base_spec.paths.as_ref();
+        let current_paths = self.current_spec.paths.as_ref();
+
+        // Collect all unique path keys
+        let mut all_paths: HashSet<String> = HashSet::new();
+        if let Some(paths) = base_paths {
+            all_paths.extend(paths.keys().cloned());
+        }
+        if let Some(paths) = current_paths {
+            all_paths.extend(paths.keys().cloned());
+        }
+
+        for path in all_paths {
+            let base_path_item = base_paths.and_then(|p| p.get(&path));
+            let current_path_item = current_paths.and_then(|p| p.get(&path));
+
+            // Compare each HTTP method
+            let methods = vec!["get", "post", "put", "delete", "patch", "head", "options"];
+
+            for method in methods {
+                let base_op = base_path_item.and_then(|p| self.get_operation(p, method));
+                let current_op = current_path_item.and_then(|p| self.get_operation(p, method));
+
+                // Skip if both are None
+                if base_op.is_none() && current_op.is_none() {
+                    continue;
+                }
+
+                let violations = self.compare_operations(&path, method, base_op, current_op);
+
+                if !violations.is_empty() {
+                    let route_name = format!("{} {}", method.to_uppercase(), path);
+                    results.push(MatchResult::new(route_name, violations));
+                }
+            }
+        }
+
+        results
+    }
+
+    /// Get operation for a specific HTTP method from PathItem
+    fn get_operation<'b>(&self, path_item: &'b PathItem, method: &str) -> Option<&'b Operation> {
+        match method {
+            "get" => path_item.get.as_ref(),
+            "post" => path_item.post.as_ref(),
+            "put" => path_item.put.as_ref(),
+            "delete" => path_item.delete.as_ref(),
+            "patch" => path_item.patch.as_ref(),
+            "head" => path_item.head.as_ref(),
+            "options" => path_item.options.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// Compare two operations and detect rule violations
+    fn compare_operations(
+        &self,
+        path: &str,
+        method: &str,
+        base: Option<&Operation>,
+        current: Option<&Operation>,
+    ) -> Vec<RuleViolation> {
+        let mut violations = Vec::new();
+
+        // Detect route-level changes
+        violations.extend(self.detect_route_rule_violations::<RouteAddedRule>(
+            path, method, base, current,
+        ));
+
+        violations.extend(self.detect_route_rule_violations::<RouteRemovedRule>(
+            path, method, base, current,
+        ));
+
+        // If both operations exist, compare details
+        if base.is_some() && current.is_some() {
+            violations.extend(self.detect_route_rule_violations::<RouteDescriptionChangedRule>(
+                path, method, base, current,
+            ));
+
+            violations.extend(self.detect_route_rule_violations::<RouteSummaryChangedRule>(
+                path, method, base, current,
+            ));
+
+            violations.extend(self.detect_route_rule_violations::<RequiredParameterAddedRule>(
+                path, method, base, current,
+            ));
+
+            violations.extend(self.detect_route_rule_violations::<ParameterRemovedRule>(
+                path, method, base, current,
+            ));
+
+            violations.extend(self.detect_route_rule_violations::<ResponseStatusAddedRule>(
+                path, method, base, current,
+            ));
+
+            violations.extend(self.detect_route_rule_violations::<ResponseStatusRemovedRule>(
+                path, method, base, current,
+            ));
+        }
+
+        violations
+    }
+
+    /// Detect route rule violations using the RouteRule trait
+    fn detect_route_rule_violations<T: RouteRule + 'static>(
+        &self,
+        path: &str,
+        method: &str,
+        base: Option<&Operation>,
+        current: Option<&Operation>,
+    ) -> Vec<RuleViolation> {
+        T::detect(path, method, base, current)
+            .into_iter()
+            .map(|rule| RuleViolation::new(Box::new(rule)))
+            .collect()
+    }
+
+    /// Extract schema references from an operation
+    pub fn extract_route_schemas(&self, path: &str, method: &str, operation: &Operation) -> RouteInfo {
+        let mut request_schemas = Vec::new();
+        let mut response_schemas = Vec::new();
+
+        // Extract request body schemas
+        if let Some(request_body) = &operation.request_body {
+            if let ObjectOrReference::Object(body) = request_body {
+                for (content_type, media_type) in &body.content {
+                    if let Some(schema) = &media_type.schema {
+                        if let Some(schema_name) = Self::extract_schema_name_static(schema) {
+                            request_schemas.push(SchemaReference {
+                                schema_name,
+                                content_type: content_type.clone(),
+                                location: SchemaLocation::RequestBody,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Extract response schemas
+        if let Some(responses) = &operation.responses {
+            for (status_code, response_ref) in responses {
+                if let ObjectOrReference::Object(response) = response_ref {
+                    for (content_type, media_type) in &response.content {
+                        if let Some(schema) = &media_type.schema {
+                            if let Some(schema_name) = Self::extract_schema_name_static(schema) {
+                                response_schemas.push(SchemaReference {
+                                    schema_name,
+                                    content_type: content_type.clone(),
+                                    location: SchemaLocation::Response(status_code.clone()),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        RouteInfo {
+            path: path.to_string(),
+            method: method.to_string(),
+            request_schemas,
+            response_schemas,
+        }
+    }
+
+    /// Extract schema name from a schema reference (static method)
+    fn extract_schema_name_static(schema: &ObjectOrReference<ObjectSchema>) -> Option<String> {
+        match schema {
+            ObjectOrReference::Ref { ref_path, .. } => {
+                ref_path.strip_prefix("#/components/schemas/")
+                    .map(|s| s.to_string())
+            }
+            _ => None,
+        }
+    }
+
+    /// Get all routes with their schema information for the current spec
+    pub fn get_all_routes_with_schemas(&self) -> Vec<RouteInfo> {
+        let mut routes = Vec::new();
+        
+        if let Some(paths) = &self.current_spec.paths {
+            for (path, path_item) in paths {
+                let methods = vec!["get", "post", "put", "delete", "patch", "head", "options"];
+
+                for method in methods {
+                    if let Some(operation) = self.get_operation(path_item, method) {
+                        routes.push(self.extract_route_schemas(path, method, operation));
+                    }
+                }
+            }
+        }
+
+        routes
+    }
 }
 
 #[cfg(test)]

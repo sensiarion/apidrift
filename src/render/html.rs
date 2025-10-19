@@ -1,5 +1,6 @@
 use crate::render::Renderer;
 use crate::rules::{MatchResult, RuleViolation};
+use crate::matcher::{RouteInfo, SchemaReference, SchemaLocation};
 use crate::ChangeLevel;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -9,6 +10,7 @@ use tera::{Context, Tera};
 #[derive(Serialize)]
 struct TemplateData {
     schemas: Vec<SchemaData>,
+    routes: Vec<RouteData>,
     stats: Stats,
     grouped_changes: Vec<GroupedChange>,
 }
@@ -27,6 +29,27 @@ struct SchemaData {
     change_level: String,
     change_level_class: String,
     differences: Vec<DifferenceData>,
+}
+
+#[derive(Serialize)]
+struct RouteData {
+    name: String,
+    path: String,
+    method: String,
+    change_level: String,
+    change_level_class: String,
+    differences: Vec<DifferenceData>,
+    request_schemas: Vec<SchemaLinkData>,
+    response_schemas: Vec<SchemaLinkData>,
+}
+
+#[derive(Serialize)]
+struct SchemaLinkData {
+    schema_name: String,
+    content_type: String,
+    location: String,
+    status_code: Option<String>,
+    has_changes: bool, // true if this schema has changes and can be linked
 }
 
 #[derive(Serialize, Clone)]
@@ -54,6 +77,7 @@ struct GroupedChange {
     change_level_class: String,
     details: Vec<PropertyCard>,
     schema_names: Vec<String>,
+    is_route_change: bool, // true if this is a route change, false if schema
 }
 
 pub struct HtmlRenderer {
@@ -66,6 +90,159 @@ impl HtmlRenderer {
         let tera = Tera::new("templates/**/*.html")?;
         
         Ok(Self { tera })
+    }
+
+    /// Render HTML report with routes and schemas
+    pub fn render_with_routes(
+        &self,
+        schema_results: &[MatchResult],
+        route_results: &[MatchResult],
+        route_infos: &[RouteInfo],
+    ) -> Result<String, Box<dyn Error>> {
+        let data = self.convert_to_template_data_with_routes(schema_results, route_results, route_infos);
+        let mut context = Context::new();
+        context.insert("data", &data);
+        
+        let html = self.tera.render("report.html", &context)?;
+        Ok(html)
+    }
+
+    fn convert_to_template_data_with_routes(
+        &self,
+        schema_results: &[MatchResult],
+        route_results: &[MatchResult],
+        route_infos: &[RouteInfo],
+    ) -> TemplateData {
+        let mut breaking_count = 0;
+        let mut warning_count = 0;
+        let mut change_count = 0;
+
+        // Group schema and route changes separately and combine
+        let mut grouped_changes = self.group_repeating_changes(schema_results);
+        let route_grouped = self.group_repeating_changes(route_results);
+        grouped_changes.extend(route_grouped);
+
+        // Convert schema results
+        let schemas: Vec<SchemaData> = schema_results
+            .iter()
+            .map(|result| {
+                let (change_level, change_level_class) = match result.change_level {
+                    ChangeLevel::Breaking => {
+                        breaking_count += 1;
+                        ("Breaking".to_string(), "breaking".to_string())
+                    }
+                    ChangeLevel::Warning => {
+                        warning_count += 1;
+                        ("Warning".to_string(), "warning".to_string())
+                    }
+                    ChangeLevel::Change => {
+                        change_count += 1;
+                        ("Change".to_string(), "change".to_string())
+                    }
+                };
+
+                let differences = result.violations
+                    .iter()
+                    .map(|violation| self.convert_violation(violation))
+                    .collect();
+
+                SchemaData {
+                    name: result.name.clone(),
+                    change_level,
+                    change_level_class,
+                    differences,
+                }
+            })
+            .collect();
+
+        // Convert route results
+        let routes: Vec<RouteData> = route_results
+            .iter()
+            .map(|result| {
+                let (change_level, change_level_class) = match result.change_level {
+                    ChangeLevel::Breaking => {
+                        breaking_count += 1;
+                        ("Breaking".to_string(), "breaking".to_string())
+                    }
+                    ChangeLevel::Warning => {
+                        warning_count += 1;
+                        ("Warning".to_string(), "warning".to_string())
+                    }
+                    ChangeLevel::Change => {
+                        change_count += 1;
+                        ("Change".to_string(), "change".to_string())
+                    }
+                };
+
+                let differences = result.violations
+                    .iter()
+                    .map(|violation| self.convert_violation(violation))
+                    .collect();
+
+                // Find route info for this route
+                let parts: Vec<&str> = result.name.split_whitespace().collect();
+                let method = parts.get(0).unwrap_or(&"").to_lowercase();
+                let path = parts.get(1).unwrap_or(&"");
+
+                let route_info = route_infos.iter()
+                    .find(|r| r.method == method && r.path == *path);
+
+                // Get list of schemas with changes for filtering
+                let schemas_with_changes: std::collections::HashSet<String> = schema_results.iter()
+                    .map(|r| r.name.clone())
+                    .collect();
+
+                let (request_schemas, response_schemas) = if let Some(info) = route_info {
+                    (
+                        self.convert_schema_references(&info.request_schemas, &schemas_with_changes),
+                        self.convert_schema_references(&info.response_schemas, &schemas_with_changes),
+                    )
+                } else {
+                    (vec![], vec![])
+                };
+
+                RouteData {
+                    name: result.name.clone(),
+                    path: path.to_string(),
+                    method: method.to_uppercase(),
+                    change_level,
+                    change_level_class,
+                    differences,
+                    request_schemas,
+                    response_schemas,
+                }
+            })
+            .collect();
+
+        TemplateData {
+            stats: Stats {
+                total_changes: schema_results.len() + route_results.len(),
+                breaking_changes: breaking_count,
+                warnings: warning_count,
+                non_breaking_changes: change_count,
+            },
+            schemas,
+            routes,
+            grouped_changes,
+        }
+    }
+
+    fn convert_schema_references(&self, refs: &[SchemaReference], schemas_with_changes: &std::collections::HashSet<String>) -> Vec<SchemaLinkData> {
+        refs.iter()
+            .map(|r| SchemaLinkData {
+                schema_name: r.schema_name.clone(),
+                content_type: r.content_type.clone(),
+                location: match &r.location {
+                    SchemaLocation::RequestBody => "Request Body".to_string(),
+                    SchemaLocation::Response(_) => "Response".to_string(),
+                },
+                status_code: match &r.location {
+                    SchemaLocation::Response(code) => Some(code.clone()),
+                    _ => None,
+                },
+                has_changes: schemas_with_changes.contains(&r.schema_name),
+            })
+            .collect()
     }
 
     fn convert_to_template_data(&self, results: &[MatchResult]) -> TemplateData {
@@ -115,20 +292,27 @@ impl HtmlRenderer {
                 non_breaking_changes: change_count,
             },
             schemas,
+            routes: vec![], // No routes in old method
             grouped_changes,
         }
     }
 
     fn group_repeating_changes(&self, results: &[MatchResult]) -> Vec<GroupedChange> {
-        let mut change_map: HashMap<String, (DifferenceData, Vec<String>)> = HashMap::new();
+        let mut change_map: HashMap<String, (DifferenceData, Vec<String>, bool)> = HashMap::new();
 
         // Collect all changes and their schemas
         for result in results {
+            // Check if this is a route (has HTTP method prefix)
+            let is_route = result.name.starts_with("GET ") || result.name.starts_with("POST ") || 
+                          result.name.starts_with("PUT ") || result.name.starts_with("DELETE ") ||
+                          result.name.starts_with("PATCH ") || result.name.starts_with("HEAD ") ||
+                          result.name.starts_with("OPTIONS ");
+            
             for violation in &result.violations {
                 let diff_data = self.convert_violation(violation);
                 let key = self.create_change_key(&diff_data);
                 
-                let entry = change_map.entry(key).or_insert_with(|| (diff_data.clone(), Vec::new()));
+                let entry = change_map.entry(key).or_insert_with(|| (diff_data.clone(), Vec::new(), is_route));
                 entry.1.push(result.name.clone());
                 
                 // If we already have this change, merge the descriptions
@@ -138,11 +322,11 @@ impl HtmlRenderer {
             }
         }
 
-        // Only group changes that appear in multiple schemas
+        // Only group changes that appear in multiple schemas/routes
         let mut grouped: Vec<GroupedChange> = change_map
             .into_iter()
-            .filter(|(_, (_, schemas))| schemas.len() > 1)
-            .map(|(key, (diff, mut schema_names))| {
+            .filter(|(_, (_, schemas, _))| schemas.len() > 1)
+            .map(|(key, (diff, mut schema_names, is_route))| {
                 // Remove duplicates from schema names
                 schema_names.sort();
                 schema_names.dedup();
@@ -155,6 +339,7 @@ impl HtmlRenderer {
                     change_level_class: diff.change_level_class,
                     details: diff.details,
                     schema_names,
+                    is_route_change: is_route,
                 }
             })
             .collect();
@@ -260,6 +445,7 @@ impl HtmlRenderer {
         
         // Map rule names to emojis and extract details
         let (emoji, details) = match rule_name {
+            // Schema rules
             "SchemaAdded" => ("➕", vec![]),
             "SchemaRemoved" => ("➖", vec![]),
             "TypeChanged" => ("📝", vec![]),
@@ -281,6 +467,15 @@ impl HtmlRenderer {
             "FormatChanged" => ("🏷️", vec![]),
             "NullableChanged" => ("❓", vec![]),
             "ArrayItemsChanged" => ("📦", vec![]),
+            // Route rules
+            "RouteAdded" => ("➕", vec![]),
+            "RouteRemoved" => ("➖", vec![]),
+            "RouteDescriptionChanged" => ("📄", vec![]),
+            "RouteSummaryChanged" => ("📝", vec![]),
+            "RequiredParameterAdded" => ("⚠️", vec![]),
+            "ParameterRemoved" => ("⚠️", vec![]),
+            "ResponseStatusAdded" => ("➕", vec![]),
+            "ResponseStatusRemoved" => ("➖", vec![]),
             _ => ("❔", vec![]),
         };
 
