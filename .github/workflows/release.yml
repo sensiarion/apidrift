@@ -71,8 +71,8 @@ jobs:
         run: |
           echo "Running tests before release planning..."
           cargo fmt -- --check
-          cargo build --verbose
-          cargo test --verbose
+          cargo build
+          cargo test
           echo "All tests passed! Proceeding with release..."
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
