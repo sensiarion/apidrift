@@ -611,6 +611,13 @@
                     <div class="grouped-header {{ change.change_level_class }}">
                         <div class="grouped-change-description">
                             <span class="toggle-icon">▶</span>
+                            {% if change.is_schema_grouped %}
+                            {# Schema-grouped: show schema name with change count #}
+                            <span class="change-emoji">{{ change.emoji }}</span>
+                            <span>{{ change.description }}</span>
+                            <span class="count-badge">{{ change.changes | length }} changes</span>
+                            {% else %}
+                            {# Change-grouped: show change description with schema count #}
                             {% if change.is_route_change %}
                             <span class="change-emoji">🛣️</span>
                             {% else %}
@@ -618,10 +625,28 @@
                             {% endif %}
                             <span>{{ change.description }}</span>
                             <span class="count-badge">{{ change.schema_names | length }} {% if change.is_route_change %}routes{% else %}schemas{% endif %}</span>
+                            {% endif %}
                         </div>
                         <span class="badge {{ change.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ change.change_level_class }}')">{{ change.change_level }}</span>
                     </div>
                     <div class="grouped-body">
+                        {% if change.is_schema_grouped %}
+                        {# For schema-grouped, show list of changes #}
+                        <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                            {% for item in change.changes %}
+                            <div class="difference {{ item.change_level_class }}">
+                                <div class="difference-header">
+                                    <span class="difference-description">
+                                        <span style="margin-right: 6px;">{{ item.emoji }}</span>
+                                        {{ item.description }}
+                                    </span>
+                                    <span class="badge {{ item.change_level_class }}">{{ item.change_level }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        {# For change-grouped, show details if any #}
                         {% if change.details | length > 0 %}
                         <div class="property-cards">
                             {% for detail in change.details %}
@@ -633,6 +658,8 @@
                             {% endfor %}
                         </div>
                         {% endif %}
+                        {% endif %}
+                        
                         <div class="schema-chips">
                             {% for schema_name in change.schema_names %}
                             {% if change.is_route_change %}
@@ -791,7 +818,36 @@
                         <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
                         <div style="display: grid; gap: 8px;">
                             {% for property in schema.properties %}
-                            <div style="background: {% if property.violations | length > 0 %}#fef2f2{% else %}#f9fafb{% endif %}; border: 1px solid {% if property.violations | length > 0 %}#fecaca{% else %}#e5e7eb{% endif %}; border-radius: 4px; padding: 10px;">
+                            {% set property_change_level = "" %}
+                            {% if property.violations | length > 0 %}
+                                {% for violation in property.violations %}
+                                    {% if violation.change_level == "Breaking" %}
+                                        {% set property_change_level = "Breaking" %}
+                                    {% elif violation.change_level == "Warning" and property_change_level != "Breaking" %}
+                                        {% set property_change_level = "Warning" %}
+                                    {% elif property_change_level == "" %}
+                                        {% set property_change_level = "Change" %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            
+                            {% if property.violations | length > 0 %}
+                                {% if property_change_level == "Breaking" %}
+                                    {% set property_bg_color = "#fef2f2" %}
+                                    {% set property_border_color = "#fecaca" %}
+                                {% elif property_change_level == "Warning" %}
+                                    {% set property_bg_color = "#fffbeb" %}
+                                    {% set property_border_color = "#fed7aa" %}
+                                {% else %}
+                                    {% set property_bg_color = "#f0fdf4" %}
+                                    {% set property_border_color = "#bbf7d0" %}
+                                {% endif %}
+                            {% else %}
+                                {% set property_bg_color = "#f9fafb" %}
+                                {% set property_border_color = "#e5e7eb" %}
+                            {% endif %}
+                            
+                            <div style="background: {{ property_bg_color }}; border: 1px solid {{ property_border_color }}; border-radius: 4px; padding: 10px;">
                                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
                                     <div style="flex: 1;">
                                         <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">{{ property.name }}</span>
@@ -826,10 +882,10 @@
                                 {% endif %}
                                 
                                 {% if property.violations | length > 0 %}
-                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #fecaca;">
-                                    <div style="font-size: 0.7rem; font-weight: 600; color: #dc2626; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid {{ property_border_color }};">
+                                    <div style="font-size: 0.7rem; font-weight: 600; color: {% if property_change_level == 'Breaking' %}#dc2626{% elif property_change_level == 'Warning' %}#d97706{% else %}#16a34a{% endif %}; margin-bottom: 4px;">⚠️ CHANGES:</div>
                                     {% for violation in property.violations %}
-                                    <div style="background: white; border: 1px solid #fecaca; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                    <div style="background: white; border: 1px solid {{ property_border_color }}; border-radius: 3px; padding: 6px; margin-top: 4px;">
                                         <div style="display: flex; justify-content: space-between; align-items: center;">
                                             <span style="font-size: 0.75rem; color: #1f2937;">{{ violation.description }}</span>
                                             <span style="background: {% if violation.change_level == 'Breaking' %}#f93e3e{% elif violation.change_level == 'Warning' %}#f7981c{% else %}#49cc90{% endif %}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">{{ violation.change_level }}</span>

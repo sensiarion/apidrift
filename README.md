@@ -155,8 +155,8 @@ I want to create diff tool, that:
 - [x] verbose all fields for SchemaAddedRule
 - [ ] deprecation tracking
 - [ ] headers change tracking
-- [ ] add filter panel by level (critical, change, etc) to display only certain changes on report
-  - also add CLI param to filter rules on generation
+- [x] add filter panel by level (critical, change, etc) to display only certain changes on report
+  - [ ] also add CLI param to filter rules on generation
 - [ ] track addition of required input param as Critical
 
 - [ ] parallel comparison run

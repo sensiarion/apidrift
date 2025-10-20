@@ -79,6 +79,17 @@ struct GroupedChange {
     details: Vec<PropertyCard>,
     schema_names: Vec<String>,
     is_route_change: bool, // true if this is a route change, false if schema
+    // For single-schema grouping
+    is_schema_grouped: bool, // true if this groups multiple changes for one schema
+    changes: Vec<ChangeItem>, // list of individual changes (for schema-grouped items)
+}
+
+#[derive(Serialize, Clone)]
+struct ChangeItem {
+    emoji: String,
+    description: String,
+    change_level: String,
+    change_level_class: String,
 }
 
 pub struct HtmlRenderer {
@@ -126,6 +137,17 @@ impl HtmlRenderer {
         let mut warning_count = 0;
         let mut change_count = 0;
 
+        // Count individual violations instead of MatchResults
+        for result in schema_results.iter().chain(route_results.iter()) {
+            for violation in &result.violations {
+                match violation.change_level() {
+                    ChangeLevel::Breaking => breaking_count += 1,
+                    ChangeLevel::Warning => warning_count += 1,
+                    ChangeLevel::Change => change_count += 1,
+                }
+            }
+        }
+
         // Group schema and route changes separately and combine
         let mut grouped_changes = self.group_repeating_changes(schema_results);
         let route_grouped = self.group_repeating_changes(route_results);
@@ -136,18 +158,9 @@ impl HtmlRenderer {
             .iter()
             .map(|result| {
                 let (change_level, change_level_class) = match result.change_level {
-                    ChangeLevel::Breaking => {
-                        breaking_count += 1;
-                        ("Breaking".to_string(), "breaking".to_string())
-                    }
-                    ChangeLevel::Warning => {
-                        warning_count += 1;
-                        ("Warning".to_string(), "warning".to_string())
-                    }
-                    ChangeLevel::Change => {
-                        change_count += 1;
-                        ("Change".to_string(), "change".to_string())
-                    }
+                    ChangeLevel::Breaking => ("Breaking".to_string(), "breaking".to_string()),
+                    ChangeLevel::Warning => ("Warning".to_string(), "warning".to_string()),
+                    ChangeLevel::Change => ("Change".to_string(), "change".to_string()),
                 };
 
                 let differences = result
@@ -233,7 +246,7 @@ impl HtmlRenderer {
 
         TemplateData {
             stats: Stats {
-                total_changes: schema_results.len() + route_results.len(),
+                total_changes: breaking_count + warning_count + change_count,
                 breaking_changes: breaking_count,
                 warnings: warning_count,
                 non_breaking_changes: change_count,
@@ -272,24 +285,26 @@ impl HtmlRenderer {
         let mut warning_count = 0;
         let mut change_count = 0;
 
+        // Count individual violations instead of MatchResults
+        for result in results {
+            for violation in &result.violations {
+                match violation.change_level() {
+                    ChangeLevel::Breaking => breaking_count += 1,
+                    ChangeLevel::Warning => warning_count += 1,
+                    ChangeLevel::Change => change_count += 1,
+                }
+            }
+        }
+
         let grouped_changes = self.group_repeating_changes(results);
 
         let schemas: Vec<SchemaData> = results
             .iter()
             .map(|result| {
                 let (change_level, change_level_class) = match result.change_level {
-                    ChangeLevel::Breaking => {
-                        breaking_count += 1;
-                        ("Breaking".to_string(), "breaking".to_string())
-                    }
-                    ChangeLevel::Warning => {
-                        warning_count += 1;
-                        ("Warning".to_string(), "warning".to_string())
-                    }
-                    ChangeLevel::Change => {
-                        change_count += 1;
-                        ("Change".to_string(), "change".to_string())
-                    }
+                    ChangeLevel::Breaking => ("Breaking".to_string(), "breaking".to_string()),
+                    ChangeLevel::Warning => ("Warning".to_string(), "warning".to_string()),
+                    ChangeLevel::Change => ("Change".to_string(), "change".to_string()),
                 };
 
                 let differences = result
@@ -309,7 +324,7 @@ impl HtmlRenderer {
 
         TemplateData {
             stats: Stats {
-                total_changes: results.len(),
+                total_changes: breaking_count + warning_count + change_count,
                 breaking_changes: breaking_count,
                 warnings: warning_count,
                 non_breaking_changes: change_count,
@@ -352,44 +367,110 @@ impl HtmlRenderer {
             }
         }
 
-        // Include ALL changes (even single occurrences) in brief changes
-        let mut grouped: Vec<GroupedChange> = change_map
-            .into_iter()
-            .map(|(key, (diff, mut schema_names, is_route))| {
-                // Remove duplicates from schema names
-                schema_names.sort();
-                schema_names.dedup();
+        // Separate multi-occurrence and single-occurrence changes
+        let mut multi_occurrence: Vec<GroupedChange> = Vec::new();
+        let mut single_occurrence: HashMap<String, Vec<(DifferenceData, bool)>> = HashMap::new();
 
-                GroupedChange {
+        for (key, (diff, mut schema_names, is_route)) in change_map {
+            schema_names.sort();
+            schema_names.dedup();
+
+            if schema_names.len() > 1 {
+                // Multiple schemas - group by change type
+                multi_occurrence.push(GroupedChange {
                     change_key: key,
                     emoji: diff.emoji,
                     description: diff.description,
-                    change_level: diff.change_level,
-                    change_level_class: diff.change_level_class,
+                    change_level: diff.change_level.clone(),
+                    change_level_class: diff.change_level_class.clone(),
                     details: diff.details,
                     schema_names,
                     is_route_change: is_route,
-                }
-            })
-            .collect();
+                    is_schema_grouped: false,
+                    changes: vec![],
+                });
+            } else if schema_names.len() == 1 {
+                // Single schema - collect all changes for this schema
+                let schema_name = schema_names[0].clone();
+                single_occurrence
+                    .entry(schema_name)
+                    .or_insert_with(Vec::new)
+                    .push((diff, is_route));
+            }
+        }
 
-        // Sort by number of schemas (descending) and then by change level
-        grouped.sort_by(|a, b| {
-            let count_cmp = b.schema_names.len().cmp(&a.schema_names.len());
-            if count_cmp != std::cmp::Ordering::Equal {
-                count_cmp
-            } else {
-                let level_order = |class: &str| match class {
+        // Group single-occurrence changes by schema
+        for (schema_name, changes) in single_occurrence {
+            // Determine overall change level (highest severity)
+            let overall_level = changes
+                .iter()
+                .map(|(diff, _)| &diff.change_level_class)
+                .min_by_key(|class| match class.as_str() {
                     "breaking" => 0,
                     "warning" => 1,
                     "change" => 2,
                     _ => 3,
-                };
-                level_order(&a.change_level_class).cmp(&level_order(&b.change_level_class))
+                })
+                .cloned()
+                .unwrap_or_else(|| "change".to_string());
+
+            let overall_level_str = match overall_level.as_str() {
+                "breaking" => "Breaking",
+                "warning" => "Warning",
+                _ => "Change",
+            };
+
+            let is_route = changes.first().map(|(_, ir)| *ir).unwrap_or(false);
+
+            // Create list of individual changes
+            let change_items: Vec<ChangeItem> = changes
+                .iter()
+                .map(|(diff, _)| ChangeItem {
+                    emoji: diff.emoji.clone(),
+                    description: diff.description.clone(),
+                    change_level: diff.change_level.clone(),
+                    change_level_class: diff.change_level_class.clone(),
+                })
+                .collect();
+
+            multi_occurrence.push(GroupedChange {
+                change_key: schema_name.clone(),
+                emoji: if is_route { "🛣️" } else { "🔧" }.to_string(),
+                description: schema_name.clone(),
+                change_level: overall_level_str.to_string(),
+                change_level_class: overall_level,
+                details: vec![],
+                schema_names: vec![schema_name],
+                is_route_change: is_route,
+                is_schema_grouped: true,
+                changes: change_items,
+            });
+        }
+
+        // Sort: multi-occurrence first (by count), then single-occurrence (by change level)
+        multi_occurrence.sort_by(|a, b| {
+            match (a.is_schema_grouped, b.is_schema_grouped) {
+                (false, true) => std::cmp::Ordering::Less, // Multi-occurrence first
+                (true, false) => std::cmp::Ordering::Greater, // Single-occurrence later
+                _ => {
+                    // Within same group, sort by count or level
+                    let count_cmp = b.schema_names.len().cmp(&a.schema_names.len());
+                    if count_cmp != std::cmp::Ordering::Equal {
+                        count_cmp
+                    } else {
+                        let level_order = |class: &str| match class {
+                            "breaking" => 0,
+                            "warning" => 1,
+                            "change" => 2,
+                            _ => 3,
+                        };
+                        level_order(&a.change_level_class).cmp(&level_order(&b.change_level_class))
+                    }
+                }
             }
         });
 
-        grouped
+        multi_occurrence
     }
 
     fn merge_descriptions(&self, desc1: &str, desc2: &str) -> String {
