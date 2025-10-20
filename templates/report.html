@@ -57,6 +57,18 @@
             border-radius: 6px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             border-left: 3px solid #49cc90;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+
+        .stat-card.active {
+            border-left-width: 5px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
         .stat-card h3 {
@@ -103,6 +115,11 @@
             margin-bottom: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             overflow: hidden;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .schema-card.filtered-out {
+            display: none;
         }
 
         .schema-header {
@@ -145,6 +162,17 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .badge.active {
+            box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
         }
 
         .badge.breaking {
@@ -353,6 +381,11 @@
             margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             overflow: hidden;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .grouped-card.filtered-out {
+            display: none;
         }
 
         .grouped-header {
@@ -496,19 +529,19 @@
 
     <div class="container">
         <div class="stats">
-            <div class="stat-card">
+            <div class="stat-card" data-filter="all" onclick="filterByChangeLevel('all')">
                 <h3>Total Changes</h3>
                 <div class="number">{{ data.stats.total_changes }}</div>
             </div>
-            <div class="stat-card breaking">
+            <div class="stat-card breaking" data-filter="breaking" onclick="filterByChangeLevel('breaking')">
                 <h3>Breaking Changes</h3>
                 <div class="number">{{ data.stats.breaking_changes }}</div>
             </div>
-            <div class="stat-card warning">
+            <div class="stat-card warning" data-filter="warning" onclick="filterByChangeLevel('warning')">
                 <h3>Warnings</h3>
                 <div class="number">{{ data.stats.warnings }}</div>
             </div>
-            <div class="stat-card change">
+            <div class="stat-card change" data-filter="change" onclick="filterByChangeLevel('change')">
                 <h3>Non-Breaking</h3>
                 <div class="number">{{ data.stats.non_breaking_changes }}</div>
             </div>
@@ -574,7 +607,7 @@
             <h2 class="section-title">📊 Brief Changes</h2>
             <div class="grouped-changes">
                 {% for change in data.grouped_changes %}
-                <div class="grouped-card">
+                <div class="grouped-card" data-change-level="{{ change.change_level_class }}">
                     <div class="grouped-header {{ change.change_level_class }}">
                         <div class="grouped-change-description">
                             <span class="toggle-icon">▶</span>
@@ -586,7 +619,7 @@
                             <span>{{ change.description }}</span>
                             <span class="count-badge">{{ change.schema_names | length }} {% if change.is_route_change %}routes{% else %}schemas{% endif %}</span>
                         </div>
-                        <span class="badge {{ change.change_level_class }}">{{ change.change_level }}</span>
+                        <span class="badge {{ change.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ change.change_level_class }}')">{{ change.change_level }}</span>
                     </div>
                     <div class="grouped-body">
                         {% if change.details | length > 0 %}
@@ -621,13 +654,13 @@
             <h2 class="section-title">🛣️ Route Changes</h2>
             <div class="routes">
                 {% for route in data.routes %}
-                <div class="schema-card" id="route-{{ route.name | replace(from=' ', to='-') }}">
+                <div class="schema-card" id="route-{{ route.name | replace(from=' ', to='-') }}" data-change-level="{{ route.change_level_class }}">
                     <div class="schema-header {{ route.change_level_class }}">
                         <div>
                             <span class="toggle-icon">▶</span>
                             <span class="schema-name">{{ route.method }} {{ route.path }}</span>
                         </div>
-                        <span class="badge {{ route.change_level_class }}">{{ route.change_level }}</span>
+                        <span class="badge {{ route.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ route.change_level_class }}')">{{ route.change_level }}</span>
                     </div>
                     <div class="schema-body">
                         {% for diff in route.differences %}
@@ -720,41 +753,94 @@
         </div>
         {% endif %}
 
-        {% if data.schemas | length > 0 %}
+        {% if data.full_schemas | length > 0 %}
             <h2 class="section-title">📋 Schema Changes</h2>
             <div class="schemas">
-                {% for schema in data.schemas %}
-                <div class="schema-card" id="schema-{{ schema.name }}">
+                {% for schema in data.full_schemas %}
+                <div class="schema-card" id="schema-{{ schema.name }}" data-change-level="{{ schema.change_level_class }}">
                     <div class="schema-header {{ schema.change_level_class }}">
                         <div>
                             <span class="toggle-icon">▶</span>
                             <span class="schema-name">{{ schema.name }}</span>
                         </div>
-                        <span class="badge {{ schema.change_level_class }}">{{ schema.change_level }}</span>
+                        <span class="badge {{ schema.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ schema.change_level_class }}')">{{ schema.change_level }}</span>
                     </div>
                     <div class="schema-body">
-                        {% for diff in schema.differences %}
-                        <div class="difference {{ diff.change_level_class }}">
-                            <div class="difference-header">
-                                <span class="difference-description">
-                                    <span style="margin-right: 6px;">{{ diff.emoji }}</span>
-                                    {{ diff.description }}
-                                </span>
-                                <span class="badge {{ diff.change_level_class }}">{{ diff.change_level }}</span>
-                            </div>
-                            {% if diff.details | length > 0 %}
-                            <div class="property-cards">
-                                {% for detail in diff.details %}
-                                <div class="property-card">
-                                    <span class="property-emoji">{{ detail.emoji }}</span>
-                                    <span class="property-type">{{ detail.property_type }}</span>
-                                    <span class="property-content">{{ detail.content }}</span>
-                                </div>
-                                {% endfor %}
-                            </div>
-                            {% endif %}
+                        {% if schema.description %}
+                        <div style="padding: 8px 0; color: #6b7280; font-size: 0.875rem; font-style: italic;">
+                            {{ schema.description }}
                         </div>
-                        {% endfor %}
+                        {% endif %}
+                        
+                        {% if schema.schema_level_violations | length > 0 %}
+                        <div style="margin-bottom: 12px;">
+                            <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                            {% for violation in schema.schema_level_violations %}
+                            <div class="difference {{ violation.change_level | lower }}">
+                                <div class="difference-header">
+                                    <span class="difference-description">
+                                        {{ violation.description }}
+                                    </span>
+                                    <span class="badge {{ violation.change_level | lower }}">{{ violation.change_level }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                        <div style="display: grid; gap: 8px;">
+                            {% for property in schema.properties %}
+                            <div style="background: {% if property.violations | length > 0 %}#fef2f2{% else %}#f9fafb{% endif %}; border: 1px solid {% if property.violations | length > 0 %}#fecaca{% else %}#e5e7eb{% endif %}; border-radius: 4px; padding: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                                    <div style="flex: 1;">
+                                        <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">{{ property.name }}</span>
+                                        {% if property.required %}
+                                        <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                        {% endif %}
+                                        {% if property.nullable %}
+                                        <span style="background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 4px;">NULLABLE</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if property.property_type %}
+                                    <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">{{ property.property_type }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if property.format %}
+                                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">
+                                    Format: <span style="font-family: 'SF Mono', Monaco, monospace;">{{ property.format }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if property.description %}
+                                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px; font-style: italic;">
+                                    {{ property.description }}
+                                </div>
+                                {% endif %}
+                                
+                                {% if property.enum_values | length > 0 %}
+                                <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">
+                                    Enum: <span style="font-family: 'SF Mono', Monaco, monospace;">{{ property.enum_values | join(sep=", ") }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if property.violations | length > 0 %}
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #fecaca;">
+                                    <div style="font-size: 0.7rem; font-weight: 600; color: #dc2626; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                                    {% for violation in property.violations %}
+                                    <div style="background: white; border: 1px solid #fecaca; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span style="font-size: 0.75rem; color: #1f2937;">{{ violation.description }}</span>
+                                            <span style="background: {% if violation.change_level == 'Breaking' %}#f93e3e{% elif violation.change_level == 'Warning' %}#f7981c{% else %}#49cc90{% endif %}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">{{ violation.change_level }}</span>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -768,9 +854,14 @@
     </div>
 
     <script>
+        // Global variable to track current filter
+        let currentFilter = 'all';
+
         // Click on schema header to expand/collapse
         document.querySelectorAll('.schema-header').forEach(header => {
             header.addEventListener('click', function(e) {
+                // Don't toggle if clicking on a badge
+                if (e.target.classList.contains('badge')) return;
                 const card = this.closest('.schema-card');
                 card.classList.toggle('expanded');
             });
@@ -779,6 +870,8 @@
         // Click on grouped header to expand/collapse
         document.querySelectorAll('.grouped-header').forEach(header => {
             header.addEventListener('click', function(e) {
+                // Don't toggle if clicking on a badge
+                if (e.target.classList.contains('badge')) return;
                 const card = this.closest('.grouped-card');
                 card.classList.toggle('expanded');
             });
@@ -791,6 +884,67 @@
                 section.classList.toggle('expanded');
             });
         });
+
+        // Function to filter changes by level
+        function filterByChangeLevel(level) {
+            // Toggle filter: if clicking on the same filter, reset to 'all'
+            if (currentFilter === level) {
+                level = 'all';
+            }
+            currentFilter = level;
+
+            // Update stat cards active state
+            document.querySelectorAll('.stat-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            
+            const activeStatCard = document.querySelector(`.stat-card[data-filter="${level}"]`);
+            if (activeStatCard) {
+                activeStatCard.classList.add('active');
+            }
+
+            // Filter all cards
+            const allCards = document.querySelectorAll('.schema-card, .grouped-card');
+            allCards.forEach(card => {
+                const cardLevel = card.getAttribute('data-change-level');
+                if (level === 'all' || cardLevel === level) {
+                    card.classList.remove('filtered-out');
+                } else {
+                    card.classList.add('filtered-out');
+                }
+            });
+
+            // Update badge active states
+            document.querySelectorAll('.badge').forEach(badge => {
+                badge.classList.remove('active');
+            });
+            
+            if (level !== 'all') {
+                document.querySelectorAll(`.badge.${level}`).forEach(badge => {
+                    badge.classList.add('active');
+                });
+            }
+
+            // Show/hide sections if all items are filtered out
+            updateSectionVisibility();
+        }
+
+        // Function to update section visibility
+        function updateSectionVisibility() {
+            const sections = [
+                { selector: '.grouped-section', cards: '.grouped-card' },
+                { selector: '.routes-section', cards: '.routes .schema-card' },
+                { selector: '.schemas', cards: '.schemas .schema-card' }
+            ];
+
+            sections.forEach(({ selector, cards }) => {
+                const section = document.querySelector(selector);
+                if (section) {
+                    const visibleCards = section.querySelectorAll(`${cards}:not(.filtered-out)`);
+                    // Don't hide sections, just let them be empty
+                }
+            });
+        }
 
         // Function to expand target and add blink animation
         function expandAndBlink(element) {
@@ -805,6 +959,12 @@
             const targetElement = document.getElementById(targetId);
             
             if (targetElement) {
+                // Check if the element is filtered out
+                if (targetElement.classList.contains('filtered-out')) {
+                    // Reset filter to show all
+                    filterByChangeLevel('all');
+                }
+
                 // Expand the card if it's not already expanded
                 if (!targetElement.classList.contains('expanded')) {
                     targetElement.classList.add('expanded');

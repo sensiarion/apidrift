@@ -211,6 +211,7 @@ fn main() {
     let schema_matcher =
         matcher::SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
     let schema_results = schema_matcher.match_schemas();
+    let full_schema_infos = schema_matcher.build_full_schema_infos(&schema_results);
 
     // Create route matcher and compare routes
     let route_matcher = matcher::RouteMatcher::new(&base, &current);
@@ -237,14 +238,18 @@ fn main() {
         }
     };
 
-    let html_output =
-        match renderer.render_with_routes(&schema_results, &route_results, &route_infos) {
-            Ok(html) => html,
-            Err(err) => {
-                eprintln!("❌ Error: Failed to render HTML: {}", err);
-                std::process::exit(1);
-            }
-        };
+    let html_output = match renderer.render_with_routes(
+        &schema_results,
+        &route_results,
+        &route_infos,
+        &full_schema_infos,
+    ) {
+        Ok(html) => html,
+        Err(err) => {
+            eprintln!("❌ Error: Failed to render HTML: {}", err);
+            std::process::exit(1);
+        }
+    };
 
     // Write to file
     if let Err(err) = fs::write(&cli.output, html_output) {

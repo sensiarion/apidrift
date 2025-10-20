@@ -13,6 +13,7 @@ struct TemplateData {
     routes: Vec<RouteData>,
     stats: Stats,
     grouped_changes: Vec<GroupedChange>,
+    full_schemas: Vec<crate::rules::FullSchemaInfo>,
 }
 
 #[derive(Serialize)]
@@ -99,9 +100,14 @@ impl HtmlRenderer {
         schema_results: &[MatchResult],
         route_results: &[MatchResult],
         route_infos: &[RouteInfo],
+        full_schema_infos: &[crate::rules::FullSchemaInfo],
     ) -> Result<String, Box<dyn Error>> {
-        let data =
-            self.convert_to_template_data_with_routes(schema_results, route_results, route_infos);
+        let data = self.convert_to_template_data_with_routes(
+            schema_results,
+            route_results,
+            route_infos,
+            full_schema_infos,
+        );
         let mut context = Context::new();
         context.insert("data", &data);
 
@@ -114,6 +120,7 @@ impl HtmlRenderer {
         schema_results: &[MatchResult],
         route_results: &[MatchResult],
         route_infos: &[RouteInfo],
+        full_schema_infos: &[crate::rules::FullSchemaInfo],
     ) -> TemplateData {
         let mut breaking_count = 0;
         let mut warning_count = 0;
@@ -234,6 +241,7 @@ impl HtmlRenderer {
             schemas,
             routes,
             grouped_changes,
+            full_schemas: full_schema_infos.to_vec(),
         }
     }
 
@@ -309,6 +317,7 @@ impl HtmlRenderer {
             schemas,
             routes: vec![], // No routes in old method
             grouped_changes,
+            full_schemas: vec![], // No full schemas in old method
         }
     }
 
@@ -343,10 +352,9 @@ impl HtmlRenderer {
             }
         }
 
-        // Only group changes that appear in multiple schemas/routes
+        // Include ALL changes (even single occurrences) in brief changes
         let mut grouped: Vec<GroupedChange> = change_map
             .into_iter()
-            .filter(|(_, (_, schemas, _))| schemas.len() > 1)
             .map(|(key, (diff, mut schema_names, is_route))| {
                 // Remove duplicates from schema names
                 schema_names.sort();

@@ -36,8 +36,8 @@ impl Rule for SchemaAddedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
-        format!("schema: {}", self.schema_name)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Schema
     }
 }
 
@@ -76,8 +76,8 @@ impl Rule for SchemaRemovedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
-        format!("schema: {}", self.schema_name)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Schema
     }
 }
 
@@ -122,14 +122,11 @@ impl Rule for TypeChangedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::PropertyType(self.property_path.clone())
         }
     }
 }
@@ -180,18 +177,13 @@ impl Rule for PropertyAddedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
-        if self.property_path.is_empty() {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_name
-            )
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        let full_path = if self.property_path.is_empty() {
+            self.property_name.clone()
         } else {
-            format!(
-                "schema: {}, property: {}.{}",
-                self.schema_name, self.property_path, self.property_name
-            )
-        }
+            format!("{}.{}", self.property_path, self.property_name)
+        };
+        crate::rules::ChangeAnchor::Property(full_path)
     }
 }
 
@@ -258,31 +250,16 @@ impl Rule for PropertyRemovedRule {
         }
     }
 
-    fn context(&self) -> String {
-        if self.property_path.is_empty() {
-            if self.was_required {
-                format!(
-                    "schema: {}, required: {}",
-                    self.schema_name, self.property_name
-                )
-            } else {
-                format!(
-                    "schema: {}, property: {}",
-                    self.schema_name, self.property_name
-                )
-            }
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        let full_path = if self.property_path.is_empty() {
+            self.property_name.clone()
         } else {
-            if self.was_required {
-                format!(
-                    "schema: {}, property: {}, required: {}",
-                    self.schema_name, self.property_path, self.property_name
-                )
-            } else {
-                format!(
-                    "schema: {}, property: {}.{}",
-                    self.schema_name, self.property_path, self.property_name
-                )
-            }
+            format!("{}.{}", self.property_path, self.property_name)
+        };
+        if self.was_required {
+            crate::rules::ChangeAnchor::Required
+        } else {
+            crate::rules::ChangeAnchor::Property(full_path)
         }
     }
 }
@@ -345,18 +322,8 @@ impl Rule for RequiredPropertyAddedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
-        if self.property_path.is_empty() {
-            format!(
-                "schema: {}, required: {}",
-                self.schema_name, self.property_name
-            )
-        } else {
-            format!(
-                "schema: {}, property: {}, required: {}",
-                self.schema_name, self.property_path, self.property_name
-            )
-        }
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Required
     }
 }
 
@@ -412,14 +379,11 @@ impl Rule for DescriptionChangedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::Description(self.property_path.clone())
         }
     }
 }
@@ -476,14 +440,11 @@ impl Rule for EnumValuesAddedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::EnumValues(self.property_path.clone())
         }
     }
 }
@@ -547,14 +508,11 @@ impl Rule for EnumValuesRemovedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::EnumValues(self.property_path.clone())
         }
     }
 }
@@ -617,14 +575,11 @@ impl Rule for FormatChangedRule {
         ChangeLevel::Warning
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::Format(self.property_path.clone())
         }
     }
 }
@@ -683,14 +638,11 @@ impl Rule for NullableChangedRule {
         }
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::Nullable(self.property_path.clone())
         }
     }
 }
@@ -745,14 +697,11 @@ impl Rule for ArrayItemsChangedRule {
         ChangeLevel::Warning
     }
 
-    fn context(&self) -> String {
+    fn context(&self) -> crate::rules::ChangeAnchor {
         if self.property_path.is_empty() {
-            format!("schema: {}", self.schema_name)
+            crate::rules::ChangeAnchor::Schema
         } else {
-            format!(
-                "schema: {}, property: {}",
-                self.schema_name, self.property_path
-            )
+            crate::rules::ChangeAnchor::ArrayItems(self.property_path.clone())
         }
     }
 }

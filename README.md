@@ -152,7 +152,7 @@ I want to create diff tool, that:
 
 ## TODO
 
-- [ ] verbose all fields for SchemaAddedRule
+- [x] verbose all fields for SchemaAddedRule
 - [ ] deprecation tracking
 - [ ] headers change tracking
 - [ ] add filter panel by level (critical, change, etc) to display only certain changes on report

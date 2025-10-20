@@ -38,8 +38,8 @@ impl Rule for RouteAddedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Route
     }
 
     fn category(&self) -> RuleCategory {
@@ -89,8 +89,8 @@ impl Rule for RouteRemovedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Route
     }
 
     fn category(&self) -> RuleCategory {
@@ -142,8 +142,8 @@ impl Rule for RouteDescriptionChangedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Route
     }
 
     fn category(&self) -> RuleCategory {
@@ -205,8 +205,8 @@ impl Rule for RouteSummaryChangedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Route
     }
 
     fn category(&self) -> RuleCategory {
@@ -270,8 +270,8 @@ impl Rule for RequiredParameterAddedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Parameter(self.parameter_name.clone())
     }
 
     fn category(&self) -> RuleCategory {
@@ -346,8 +346,8 @@ impl Rule for ParameterRemovedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Parameter(self.parameter_name.clone())
     }
 
     fn category(&self) -> RuleCategory {
@@ -418,8 +418,8 @@ impl Rule for ResponseStatusAddedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::ResponseStatus(self.status_code.clone())
     }
 
     fn category(&self) -> RuleCategory {
@@ -480,8 +480,8 @@ impl Rule for ResponseStatusRemovedRule {
         ChangeLevel::Warning
     }
 
-    fn context(&self) -> String {
-        format!("route: {} {}", self.method.to_uppercase(), self.path)
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::ResponseStatus(self.status_code.clone())
     }
 
     fn category(&self) -> RuleCategory {

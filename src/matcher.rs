@@ -51,6 +51,134 @@ impl<'a> SchemaMatcher<'a> {
         results
     }
 
+    /// Build full schema info for all current schemas with changes marked
+    pub fn build_full_schema_infos(
+        &self,
+        results: &[MatchResult],
+    ) -> Vec<crate::rules::FullSchemaInfo> {
+        let mut full_schemas = Vec::new();
+
+        // Process each changed schema
+        for result in results {
+            if let Some(current_schema_ref) = self.current_schemas.get(&result.name) {
+                if let Some(current_schema) =
+                    self.resolve_schema_ref(current_schema_ref, self.current_spec)
+                {
+                    let full_schema = self.build_full_schema_info(
+                        &result.name,
+                        current_schema,
+                        &result.violations,
+                    );
+                    full_schemas.push(full_schema);
+                }
+            }
+        }
+
+        full_schemas
+    }
+
+    /// Build full schema info for a single schema
+    fn build_full_schema_info(
+        &self,
+        schema_name: &str,
+        schema: &ObjectSchema,
+        violations: &[RuleViolation],
+    ) -> crate::rules::FullSchemaInfo {
+        use crate::rules::{ChangeAnchor, FullSchemaInfo, SchemaProperty, ViolationInfo};
+        use crate::ChangeLevel;
+
+        // Group violations by anchor
+        let mut schema_level_violations = Vec::new();
+        let mut property_violations: std::collections::HashMap<String, Vec<ViolationInfo>> =
+            std::collections::HashMap::new();
+
+        for violation in violations {
+            let anchor = violation.context();
+            let violation_info = ViolationInfo {
+                rule_name: violation.name().to_string(),
+                description: violation.description(),
+                change_level: match violation.change_level() {
+                    ChangeLevel::Breaking => "Breaking".to_string(),
+                    ChangeLevel::Warning => "Warning".to_string(),
+                    ChangeLevel::Change => "Change".to_string(),
+                },
+                anchor: format!("{:?}", anchor),
+            };
+
+            match anchor {
+                ChangeAnchor::Schema | ChangeAnchor::Required => {
+                    schema_level_violations.push(violation_info);
+                }
+                _ => {
+                    if let Some(prop_path) = anchor.property_path() {
+                        property_violations
+                            .entry(prop_path.to_string())
+                            .or_insert_with(Vec::new)
+                            .push(violation_info);
+                    }
+                }
+            }
+        }
+
+        // Build properties list from current schema
+        let required_set: HashSet<_> = schema.required.iter().cloned().collect();
+        let mut properties = Vec::new();
+
+        for (prop_name, prop_ref) in &schema.properties {
+            let prop_schema = self.resolve_schema_ref(prop_ref, self.current_spec);
+            let property_type =
+                prop_schema.and_then(|s| s.schema_type.as_ref().map(|t| format!("{:?}", t)));
+            let format = prop_schema.and_then(|s| s.format.clone());
+            let description = prop_schema.and_then(|s| s.description.clone());
+            let nullable = prop_schema
+                .map(|s| s.is_nullable().unwrap_or(false))
+                .unwrap_or(false);
+            let enum_values = prop_schema
+                .map(|s| s.enum_values.clone())
+                .unwrap_or_default();
+
+            let prop_violations = property_violations
+                .get(prop_name)
+                .cloned()
+                .unwrap_or_default();
+
+            properties.push(SchemaProperty {
+                name: prop_name.clone(),
+                property_type,
+                format,
+                description,
+                required: required_set.contains(prop_name),
+                nullable,
+                enum_values,
+                violations: prop_violations,
+            });
+        }
+
+        // Sort properties: required first, then by name
+        properties.sort_by(|a, b| match (a.required, b.required) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.name.cmp(&b.name),
+        });
+
+        // Calculate overall change level
+        let change_level = crate::rules::calculate_overall_change_level(violations);
+        let (change_level_str, change_level_class) = match change_level {
+            ChangeLevel::Breaking => ("Breaking".to_string(), "breaking".to_string()),
+            ChangeLevel::Warning => ("Warning".to_string(), "warning".to_string()),
+            ChangeLevel::Change => ("Change".to_string(), "change".to_string()),
+        };
+
+        FullSchemaInfo {
+            name: schema_name.to_string(),
+            description: schema.description.clone(),
+            properties,
+            schema_level_violations,
+            change_level: change_level_str,
+            change_level_class,
+        }
+    }
+
     /// Compare two schemas and find differences
     fn compare_schemas(
         &self,
