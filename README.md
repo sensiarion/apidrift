@@ -70,20 +70,39 @@ Both JSON and YAML OpenAPI specs are supported.
 
 ### Creating a Release
 
-This project uses automated versioning and releases:
+This project uses [cargo-dist](https://github.com/axodotdev/cargo-dist) for automated releases:
 
-1. Go to [GitHub Actions](https://github.com/sensiarion/apidrift/actions/workflows/auto-release.yml)
-2. Click "Run workflow"
-3. Select version bump type (patch/minor/major)
-4. The workflow will:
-   - Auto-increment the version
-   - Update `Cargo.toml` and `Cargo.lock`
-   - Commit changes to main
-   - Create a git tag
-   - Build binaries for all platforms
-   - Create a GitHub release with all assets
+1. Update the version in `Cargo.toml`
+2. Commit the changes:
+   ```bash
+   git commit -am "chore: bump version to X.Y.Z"
+   git push
+   ```
+3. Create and push a git tag:
+   ```bash
+   git tag vX.Y.Z
+   git push --tags
+   ```
+4. The release workflow will automatically:
+   - Run all tests (build fails if tests fail)
+   - Build binaries for all platforms (Linux x64/ARM64, macOS x64/ARM64, Windows x64)
+   - Create installers (shell script for Unix, PowerShell for Windows)
+   - Create a GitHub release with all artifacts
 
 See [RELEASE.md](RELEASE.md) for detailed release instructions.
+
+### CI/CD Workflows
+
+- **CI Workflow** (`.github/workflows/ci.yml`): Runs on every PR and merge to main
+  - Tests formatting with `cargo fmt`
+  - Runs linting with `cargo clippy`
+  - Builds the project
+  - Runs all tests
+
+- **Release Workflow** (`.github/workflows/release.yml`): Runs when a version tag is pushed
+  - First runs all tests (must pass before building)
+  - Builds release artifacts for all platforms using cargo-dist
+  - Creates GitHub release with all artifacts and installers
 
 ## Why i want yet another one tool
 
@@ -133,8 +152,15 @@ I want to create diff tool, that:
 
 ## TODO
 
+- [ ] verbose all fields for SchemaAddedRule
+- [ ] deprecation tracking
+- [ ] headers change tracking
+- [ ] add filter panel by level (critical, change, etc) to display only certain changes on report
+  - also add CLI param to filter rules on generation
+- [ ] track addition of required input param as Critical
+
 - [ ] parallel comparison run
-  - [ ] will require to build dep tree or locks, to prevent miltiple parsing on recursive
+  - [ ] will require to build dep tree or locks, to prevent multiple parsing on recursive
 
 - [ ] auth change/server params
 - [ ] version change tracking
