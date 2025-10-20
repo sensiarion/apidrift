@@ -34,7 +34,7 @@ fn main() {
                     violation.name(),
                     violation.description()
                 );
-                println!("      Context: {}", violation.context());
+                println!("      Context: {:?}", violation.context());
                 println!("      Level: {:?}", violation.change_level());
             }
         }

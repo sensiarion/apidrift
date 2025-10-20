@@ -97,7 +97,10 @@ fn test_product_schema_changes() {
     let has_enum_added = product_result
         .violations
         .iter()
-        .any(|v| v.name() == "EnumValuesAdded" && v.context().contains("category"));
+        .any(|v| {
+            v.name() == "EnumValuesAdded" && 
+            matches!(v.context(), apidrift::rules::ChangeAnchor::EnumValues(ref path) if path.contains("category"))
+        });
     assert!(has_enum_added, "Should detect enum changes");
 }
 
