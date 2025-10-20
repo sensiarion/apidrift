@@ -9,5 +9,5 @@
 !tests/**/*.json
 
 # Ignore generated reports
-openapi_diff_report.html
+apidrift_report.html
 

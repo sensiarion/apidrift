@@ -5,12 +5,11 @@ use oas3::OpenApiV3Spec;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// OpenAPI Diff Tool - Compare two OpenAPI specifications and generate a detailed diff report
 #[derive(Parser)]
-#[command(name = "openapi_diff")]
-#[command(version = "0.1.0")]
+#[command(name = "apidrift")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Compare two OpenAPI specifications and generate a detailed diff report", long_about = None)]
-#[command(author = "OpenAPI Diff Contributors")]
+#[command(author = "sensiarion <izertmi@gmail.com>")]
 struct Cli {
     /// Path to the base OpenAPI specification file (JSON or YAML format)
     #[arg(value_name = "BASE_SPEC")]
@@ -25,7 +24,7 @@ struct Cli {
         short = 'o',
         long = "output",
         value_name = "FILE",
-        default_value = "openapi_diff_report.html"
+        default_value = "apidrift_report.html"
     )]
     output: PathBuf,
 
@@ -143,7 +142,10 @@ fn open_in_browser(path: &Path, use_chrome: bool) {
 fn main() {
     let cli = Cli::parse();
 
-    println!("🔍 OpenAPI Diff Tool v0.1.0\n");
+    println!(
+        "🔍 ApiDrift - OpenAPI Diff Tool v{}\n",
+        env!("CARGO_PKG_VERSION")
+    );
 
     // Validate input files exist
     if !cli.base_spec.exists() {
