@@ -87,7 +87,8 @@ pub struct HtmlRenderer {
 impl HtmlRenderer {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         // Load templates from the templates directory
-        let tera = Tera::new("templates/**/*.html")?;
+        let mut tera = Tera::default();
+        let _ = tera.add_raw_template("report.html", include_str!("../../templates/report.html"));
 
         Ok(Self { tera })
     }
