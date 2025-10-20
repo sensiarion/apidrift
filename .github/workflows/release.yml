@@ -58,6 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       # Run tests before planning release - if tests fail, release is aborted
@@ -132,6 +133,7 @@ jobs:
           git config --global core.longpaths true
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install Rust non-interactively if not already installed
@@ -191,6 +193,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -241,6 +244,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -306,5 +310,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
