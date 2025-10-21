@@ -1,0 +1,127 @@
+<script>
+    // Global variable to track current filter
+    let currentFilter = 'all';
+
+    // Function to filter changes by level
+    function filterByChangeLevel(level) {
+        // Toggle filter: if clicking on the same filter, reset to 'all'
+        if (currentFilter === level) {
+            level = 'all';
+        }
+        currentFilter = level;
+
+        // Update stat cards active state
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.classList.remove('active');
+        });
+        
+        const activeStatCard = document.querySelector(`.stat-card[data-filter="${level}"]`);
+        if (activeStatCard) {
+            activeStatCard.classList.add('active');
+        }
+
+        // Filter all cards
+        const allCards = document.querySelectorAll('.schema-card, .grouped-card');
+        allCards.forEach(card => {
+            const cardLevel = card.getAttribute('data-change-level');
+            if (level === 'all' || cardLevel === level) {
+                card.classList.remove('filtered-out');
+            } else {
+                card.classList.add('filtered-out');
+            }
+        });
+
+        // Update badge active states
+        document.querySelectorAll('.badge').forEach(badge => {
+            badge.classList.remove('active');
+        });
+        
+        if (level !== 'all') {
+            document.querySelectorAll(`.badge.${level}`).forEach(badge => {
+                badge.classList.add('active');
+            });
+        }
+
+        // Show/hide sections if all items are filtered out
+        updateSectionVisibility();
+    }
+
+    // Function to update section visibility
+    function updateSectionVisibility() {
+        const sections = [
+            { selector: '.grouped-section', cards: '.grouped-card' },
+            { selector: '.routes-section', cards: '.routes .schema-card' },
+            { selector: '.schemas', cards: '.schemas .schema-card' }
+        ];
+
+        sections.forEach(({ selector, cards }) => {
+            const section = document.querySelector(selector);
+            if (section) {
+                const visibleCards = section.querySelectorAll(`${cards}:not(.filtered-out)`);
+                // Don't hide sections, just let them be empty
+            }
+        });
+    }
+
+    // Function to expand target and add blink animation
+    function expandAndBlink(element) {
+        // Prevent default anchor behavior temporarily
+        event.preventDefault();
+        
+        // Get the target ID from href
+        const href = element.getAttribute('href');
+        if (!href) return;
+        
+        const targetId = href.substring(1); // Remove the # 
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement) {
+            // Check if the element is filtered out
+            if (targetElement.classList.contains('filtered-out')) {
+                // Reset filter to show all
+                filterByChangeLevel('all');
+            }
+
+            // Expand the card if it's not already expanded
+            if (!targetElement.classList.contains('expanded')) {
+                targetElement.classList.add('expanded');
+            }
+            
+            // Scroll to the element
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Add blink animation
+            targetElement.classList.add('blink-animation');
+            
+            // Remove the animation class after it completes
+            setTimeout(() => {
+                targetElement.classList.remove('blink-animation');
+            }, 1500);
+        }
+        
+        return false;
+    }
+
+    // Handle hash navigation on page load
+    window.addEventListener('load', function() {
+        if (window.location.hash) {
+            const targetId = window.location.hash.substring(1);
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                setTimeout(() => {
+                    if (!targetElement.classList.contains('expanded')) {
+                        targetElement.classList.add('expanded');
+                    }
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetElement.classList.add('blink-animation');
+                    
+                    setTimeout(() => {
+                        targetElement.classList.remove('blink-animation');
+                    }, 1500);
+                }, 100);
+            }
+        }
+    });
+</script>
+

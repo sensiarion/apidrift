@@ -1,0 +1,140 @@
+{% if data.full_schemas | length > 0 %}
+    <h2 class="section-title">📋 Schema Changes</h2>
+    <div class="schemas">
+        {% for schema in data.full_schemas %}
+        <div class="schema-card" id="schema-{{ schema.name }}" data-change-level="{{ schema.change_level_class }}">
+            <div class="schema-header {{ schema.change_level_class }}">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">{{ schema.name }}</span>
+                </div>
+                <span class="badge {{ schema.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ schema.change_level_class }}')">{{ schema.change_level }}</span>
+            </div>
+            <div class="schema-body">
+                {% if schema.description %}
+                <div style="padding: 8px 0; color: #6b7280; font-size: 0.875rem; font-style: italic;">
+                    {{ schema.description }}
+                </div>
+                {% endif %}
+                
+                {% if schema.schema_level_violations | length > 0 %}
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    {% for violation in schema.schema_level_violations %}
+                    <div class="difference {{ violation.change_level | lower }}">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                {{ violation.description }}
+                            </span>
+                            <span class="badge {{ violation.change_level | lower }}">{{ violation.change_level }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    {% for property in schema.properties %}
+                    {% set property_change_level = "" %}
+                    {% if property.violations | length > 0 %}
+                        {% for violation in property.violations %}
+                            {% if violation.change_level == "Breaking" %}
+                                {% set property_change_level = "Breaking" %}
+                            {% elif violation.change_level == "Warning" and property_change_level != "Breaking" %}
+                                {% set property_change_level = "Warning" %}
+                            {% elif property_change_level == "" %}
+                                {% set property_change_level = "Change" %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    
+                    {% if property.violations | length > 0 %}
+                        {% if property_change_level == "Breaking" %}
+                            {% set property_bg_color = "#fef2f2" %}
+                            {% set property_border_color = "#fecaca" %}
+                        {% elif property_change_level == "Warning" %}
+                            {% set property_bg_color = "#fffbeb" %}
+                            {% set property_border_color = "#fed7aa" %}
+                        {% else %}
+                            {% set property_bg_color = "#f0fdf4" %}
+                            {% set property_border_color = "#bbf7d0" %}
+                        {% endif %}
+                    {% else %}
+                        {% set property_bg_color = "#f9fafb" %}
+                        {% set property_border_color = "#e5e7eb" %}
+                    {% endif %}
+                    
+                    <div style="background: {{ property_bg_color }}; border: 1px solid {{ property_border_color }}; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">{{ property.name }}</span>
+                                {% if property.required %}
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                {% endif %}
+                                {% if property.nullable %}
+                                <span style="background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 4px;">NULLABLE</span>
+                                {% endif %}
+                            </div>
+                            {% if property.property_type %}
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">{{ property.property_type }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        {% if property.format %}
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">
+                            Format: <span style="font-family: 'SF Mono', Monaco, monospace;">{{ property.format }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if property.description %}
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px; font-style: italic;">
+                            {{ property.description }}
+                        </div>
+                        {% endif %}
+                        
+                        {% if property.enum_values | length > 0 %}
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">
+                            Enum: <span style="font-family: 'SF Mono', Monaco, monospace;">{{ property.enum_values | join(sep=", ") }}</span>
+                        </div>
+                        {% endif %}
+                        
+                        {% if property.violations | length > 0 %}
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid {{ property_border_color }};">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: {% if property_change_level == 'Breaking' %}#dc2626{% elif property_change_level == 'Warning' %}#d97706{% else %}#16a34a{% endif %}; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            {% for violation in property.violations %}
+                            <div style="background: white; border: 1px solid {{ property_border_color }}; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">{{ violation.description }}</span>
+                                    <span style="background: {% if violation.change_level == 'Breaking' %}#f93e3e{% elif violation.change_level == 'Warning' %}#f7981c{% else %}#49cc90{% endif %}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">{{ violation.change_level }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="no-changes">
+        <h2>No Changes Detected</h2>
+        <p>The schemas are identical between versions.</p>
+    </div>
+{% endif %}
+
+<script>
+    // Click on schema header to expand/collapse (for schema cards in this section)
+    document.querySelectorAll('.schemas .schema-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't toggle if clicking on a badge
+            if (e.target.classList.contains('badge')) return;
+            const card = this.closest('.schema-card');
+            card.classList.toggle('expanded');
+        });
+    });
+</script>
+

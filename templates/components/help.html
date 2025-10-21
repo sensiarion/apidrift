@@ -1,0 +1,122 @@
+<style>
+    .help-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+
+    .help-header {
+        padding: 12px 16px;
+        background: #f1f5f9;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #475569;
+    }
+
+    .help-header:hover {
+        background: #e2e8f0;
+    }
+
+    .help-body {
+        padding: 16px;
+        display: none;
+        background: white;
+    }
+
+    .help-section.expanded .help-body {
+        display: block;
+    }
+
+    .help-legend {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+    }
+
+    .legend-item .legend-emoji {
+        font-size: 1rem;
+    }
+
+    .legend-item .legend-text {
+        color: #64748b;
+    }
+</style>
+
+<div class="help-section">
+    <div class="help-header">
+        <span>📖 Legend & Help</span>
+        <span class="toggle-icon">▶</span>
+    </div>
+    <div class="help-body">
+        <h3 style="margin-bottom: 12px; font-size: 1rem; color: #1f2937;">Change Status Emojis</h3>
+        <div class="help-legend">
+            <div class="legend-item">
+                <span class="legend-emoji">➕</span>
+                <span class="legend-text">Added</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">➖</span>
+                <span class="legend-text">Removed</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">🔄</span>
+                <span class="legend-text">Changed</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">⚠️</span>
+                <span class="legend-text">Warning</span>
+            </div>
+        </div>
+        <h3 style="margin: 16px 0 12px 0; font-size: 1rem; color: #1f2937;">Property Type Emojis</h3>
+        <div class="help-legend">
+            <div class="legend-item">
+                <span class="legend-emoji">🔧</span>
+                <span class="legend-text">Property</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">📝</span>
+                <span class="legend-text">Type</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">📄</span>
+                <span class="legend-text">Description</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">📋</span>
+                <span class="legend-text">Enum</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">🏷️</span>
+                <span class="legend-text">Format</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">❓</span>
+                <span class="legend-text">Nullable</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Click on help header to expand/collapse
+    document.querySelectorAll('.help-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            const section = this.closest('.help-section');
+            section.classList.toggle('expanded');
+        });
+    });
+</script>
+

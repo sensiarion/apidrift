@@ -1,0 +1,180 @@
+<style>
+    .routes-section {
+        margin-bottom: 32px;
+    }
+
+    .schema-card {
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+        transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .schema-card.filtered-out {
+        display: none;
+    }
+
+    .schema-header {
+        padding: 12px 16px;
+        border-left: 3px solid #49cc90;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .schema-header:hover {
+        background-color: #f5f7fa;
+    }
+
+    .schema-header.breaking {
+        border-left-color: #f93e3e;
+    }
+
+    .schema-header.warning {
+        border-left-color: #f7981c;
+    }
+
+    .schema-header.change {
+        border-left-color: #49cc90;
+    }
+
+    .schema-name {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #3b4151;
+    }
+
+    .schema-body {
+        padding: 8px 16px 12px 16px;
+        display: none;
+    }
+
+    .schema-card.expanded .schema-body {
+        display: block;
+    }
+
+    .schema-card.expanded .toggle-icon {
+        transform: rotate(90deg);
+    }
+</style>
+
+{% if data.routes | length > 0 %}
+<div class="routes-section">
+    <h2 class="section-title">🛣️ Route Changes</h2>
+    <div class="routes">
+        {% for route in data.routes %}
+        <div class="schema-card" id="route-{{ route.name | replace(from=' ', to='-') }}" data-change-level="{{ route.change_level_class }}">
+            <div class="schema-header {{ route.change_level_class }}">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">{{ route.method }} {{ route.path }}</span>
+                </div>
+                <span class="badge {{ route.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ route.change_level_class }}')">{{ route.change_level }}</span>
+            </div>
+            <div class="schema-body">
+                {% for diff in route.differences %}
+                <div class="difference {{ diff.change_level_class }}">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">{{ diff.emoji }}</span>
+                            {{ diff.description }}
+                        </span>
+                        <span class="badge {{ diff.change_level_class }}">{{ diff.change_level }}</span>
+                    </div>
+                    {% if diff.details | length > 0 %}
+                    <div class="property-cards">
+                        {% for detail in diff.details %}
+                        <div class="property-card">
+                            <span class="property-emoji">{{ detail.emoji }}</span>
+                            <span class="property-type">{{ detail.property_type }}</span>
+                            <span class="property-content">{{ detail.content }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                
+                {% set has_request_changes = false %}
+                {% set has_response_changes = false %}
+                {% for schema in route.request_schemas %}
+                    {% if schema.has_changes %}
+                        {% set_global has_request_changes = true %}
+                    {% endif %}
+                {% endfor %}
+                {% for schema in route.response_schemas %}
+                    {% if schema.has_changes %}
+                        {% set_global has_response_changes = true %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% if (route.request_schemas | length > 0) or (route.response_schemas | length > 0) %}
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; font-weight: 600;">Related Schemas</h4>
+                    
+                    {% if route.request_schemas | length > 0 %}
+                    <div style="margin-bottom: 8px;">
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📥 Request:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            {% for schema in route.request_schemas %}
+                            {% if schema.has_changes %}
+                            <a href="#schema-{{ schema.schema_name }}" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                {{ schema.schema_name }}
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.content_type }})</span>
+                            </a>
+                            {% else %}
+                            <div class="schema-chip schema-chip-no-changes" title="No changes detected in this schema">
+                                🔒 {{ schema.schema_name }}
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.content_type }})</span>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if route.response_schemas | length > 0 %}
+                    <div>
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📤 Response:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            {% for schema in route.response_schemas %}
+                            {% if schema.has_changes %}
+                            <a href="#schema-{{ schema.schema_name }}" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                {{ schema.schema_name }}
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.status_code }})</span>
+                            </a>
+                            {% else %}
+                            <div class="schema-chip schema-chip-no-changes" title="No changes detected in this schema">
+                                🔒 {{ schema.schema_name }}
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">({{ schema.status_code }})</span>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+    // Click on schema header to expand/collapse (for route cards in this section)
+    document.querySelectorAll('.routes .schema-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't toggle if clicking on a badge
+            if (e.target.classList.contains('badge')) return;
+            const card = this.closest('.schema-card');
+            card.classList.toggle('expanded');
+        });
+    });
+</script>
+
