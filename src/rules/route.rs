@@ -1,3 +1,4 @@
+use oas3::spec::ObjectOrReference::Object;
 use crate::rules::{Rule, RuleCategory};
 use crate::ChangeLevel;
 use oas3::spec::Operation;
@@ -290,12 +291,15 @@ impl RouteRule for RequiredParameterAddedRule {
             (Some(base_op), Some(current_op)) => {
                 let mut rules = Vec::new();
 
-                // Get parameter names from base
+                // Get parameter (name, location) tuples from base
+                // Use string representation of location since ParameterIn doesn't implement Hash/Eq
                 let base_params: std::collections::HashSet<_> = base_op
                     .parameters
                     .iter()
                     .filter_map(|p| match p {
-                        oas3::spec::ObjectOrReference::Object(param) => Some(&param.name),
+                        oas3::spec::ObjectOrReference::Object(param) => {
+                            Some((param.name.as_str(), format!("{:?}", param.location)))
+                        }
                         _ => None,
                     })
                     .collect();
@@ -303,7 +307,8 @@ impl RouteRule for RequiredParameterAddedRule {
                 // Check current parameters
                 for param_ref in &current_op.parameters {
                     if let oas3::spec::ObjectOrReference::Object(param) = param_ref {
-                        if param.required.unwrap_or(false) && !base_params.contains(&param.name) {
+                        let param_key = (param.name.as_str(), format!("{:?}", param.location));
+                        if param.required.unwrap_or(false) && !base_params.contains(&param_key) {
                             rules.push(Self {
                                 path: path.to_string(),
                                 method: method.to_string(),
@@ -366,20 +371,24 @@ impl RouteRule for ParameterRemovedRule {
             (Some(base_op), Some(current_op)) => {
                 let mut rules = Vec::new();
 
-                // Get parameter names from current
+                // Get parameter (name, location) tuples from current
+                // Use string representation of location since ParameterIn doesn't implement Hash/Eq
                 let current_params: std::collections::HashSet<_> = current_op
                     .parameters
                     .iter()
                     .filter_map(|p| match p {
-                        oas3::spec::ObjectOrReference::Object(param) => Some(&param.name),
+                        Object(param) => {
+                            Some((param.name.as_str(), format!("{:?}", param.location)))
+                        }
                         _ => None,
                     })
                     .collect();
 
                 // Check base parameters
                 for param_ref in &base_op.parameters {
-                    if let oas3::spec::ObjectOrReference::Object(param) = param_ref {
-                        if !current_params.contains(&param.name) {
+                    if let Object(param) = param_ref {
+                        let param_key = (param.name.as_str(), format!("{:?}", param.location));
+                        if !current_params.contains(&param_key) {
                             rules.push(Self {
                                 path: path.to_string(),
                                 method: method.to_string(),

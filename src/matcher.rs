@@ -1,9 +1,9 @@
-use oas3::spec::{ObjectOrReference, ObjectSchema, Operation, PathItem, Spec};
-use std::collections::{BTreeMap, HashSet};
-
 use crate::rules::route::*;
 use crate::rules::schema::*;
 use crate::rules::{MatchResult, RuleViolation};
+use log::info;
+use oas3::spec::{ObjectOrReference, ObjectSchema, Operation, PathItem, Spec};
+use std::collections::{BTreeMap, HashSet};
 
 /// Schema matcher for comparing OpenAPI schemas between versions
 pub struct SchemaMatcher<'a> {
@@ -491,6 +491,12 @@ impl<'a> RouteMatcher<'a> {
                 if base_op.is_none() && current_op.is_none() {
                     continue;
                 }
+
+                if base_op.is_some() && current_op.is_some() && base_op == current_op {
+                    continue;
+                }
+
+                info!("Route {} {} not same ", method, path);
 
                 let violations = self.compare_operations(&path, method, base_op, current_op);
 

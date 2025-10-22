@@ -151,13 +151,17 @@ I want to create diff tool, that:
 
 
 ## TODO
-
+- [ ] fix route checks (shows incorrect addition/removal of params)
+- [ ] mark input/response schemas in routes more explicitly
 - [x] verbose all fields for SchemaAddedRule
 - [ ] deprecation tracking
 - [ ] headers change tracking
 - [x] add filter panel by level (critical, change, etc) to display only certain changes on report
   - [ ] also add CLI param to filter rules on generation
 - [ ] track addition of required input param as Critical
+- [ ] fix display types (now it shows like "Some()" and rest rust impl info)
+- [ ] refactor display of add/remove params in schema. Color - for change level and +/- emoji for addition/removal
+  - [ ] this also leads to refactoring of display removal properties. It should be included in rendering scheme
 
 - [ ] parallel comparison run
   - [ ] will require to build dep tree or locks, to prevent multiple parsing on recursive
@@ -165,6 +169,8 @@ I want to create diff tool, that:
 - [ ] auth change/server params
 - [ ] version change tracking
 - [ ] headers tracking
+
+
 
 
 ## Inspired
