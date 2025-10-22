@@ -192,6 +192,10 @@ impl<'a> SchemaMatcher<'a> {
         let base_schema = base.and_then(|b| self.resolve_schema_ref(b, self.base_spec));
         let current_schema = current.and_then(|c| self.resolve_schema_ref(c, self.current_spec));
 
+        if base.is_some() && current.is_some() && base == current{
+                return violations;
+            }
+
         // Use SchemaRule trait for schema-level detection
         violations.extend(self.detect_schema_rule_violations::<SchemaAddedRule>(
             schema_name,
@@ -209,6 +213,7 @@ impl<'a> SchemaMatcher<'a> {
 
         // If both schemas exist, compare their details
         if base.is_some() && current.is_some() {
+
             if let (Some(base_ref), Some(current_ref)) = (base, current) {
                 violations.extend(self.compare_schema_details(
                     schema_name,
@@ -283,7 +288,7 @@ impl<'a> SchemaMatcher<'a> {
         current: &ObjectOrReference<ObjectSchema>,
         depth: usize,
     ) -> Vec<RuleViolation> {
-        const MAX_DEPTH: usize = 10; // Prevent infinite recursion
+        const MAX_DEPTH: usize = 30; // Prevent infinite recursion
         let mut violations = Vec::new();
 
         // Stop recursion if we're too deep
