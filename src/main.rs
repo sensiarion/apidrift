@@ -1,11 +1,11 @@
 use apidrift::matcher;
 use apidrift::render::html::HtmlRenderer;
 use clap::Parser;
+use env_logger::Env;
 use oas3::OpenApiV3Spec;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::env;
-use env_logger::Env;
 
 #[derive(Parser)]
 #[command(name = "apidrift")]
@@ -45,8 +45,6 @@ struct Cli {
     /// More verbose output
     #[arg(long = "vv")]
     more_verbose: bool,
-
-
 }
 
 fn detect_format(path: &Path) -> Result<&'static str, String> {
@@ -150,10 +148,10 @@ fn open_in_browser(path: &Path, use_chrome: bool) {
 fn main() {
     let cli = Cli::parse();
 
-    let log_level = match (cli.verbose,cli.more_verbose){
-        (true,false) => "info",
-        (true,true) | (false,true) => "debug",
-        _ => "error"
+    let log_level = match (cli.verbose, cli.more_verbose) {
+        (true, false) => "info",
+        (true, true) | (false, true) => "debug",
+        _ => "error",
     };
     env_logger::init_from_env(Env::default().default_filter_or(log_level));
 

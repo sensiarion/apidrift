@@ -150,9 +150,19 @@ mod route_tests {
         add_path(&mut base, "/users", "get", op.clone());
         add_path(&mut current, "/users", "get", op);
 
-        let violations =
-            RouteAddedRule::detect("/users", "get", base.paths.as_ref().and_then(|p| p.get("/users")).and_then(|pi| pi.get.as_ref()),
-                                  current.paths.as_ref().and_then(|p| p.get("/users")).and_then(|pi| pi.get.as_ref()));
+        let violations = RouteAddedRule::detect(
+            "/users",
+            "get",
+            base.paths
+                .as_ref()
+                .and_then(|p| p.get("/users"))
+                .and_then(|pi| pi.get.as_ref()),
+            current
+                .paths
+                .as_ref()
+                .and_then(|p| p.get("/users"))
+                .and_then(|pi| pi.get.as_ref()),
+        );
 
         assert_eq!(violations.len(), 0, "Should not detect route as added");
     }
@@ -176,10 +186,7 @@ mod route_tests {
         let route = route_result.unwrap();
         assert_eq!(route.change_level, ChangeLevel::Breaking);
 
-        let has_route_removed = route
-            .violations
-            .iter()
-            .any(|v| v.name() == "RouteRemoved");
+        let has_route_removed = route.violations.iter().any(|v| v.name() == "RouteRemoved");
         assert!(has_route_removed, "Should have RouteRemoved violation");
     }
 
@@ -196,8 +203,15 @@ mod route_tests {
         let violations = RouteRemovedRule::detect(
             "/users",
             "get",
-            base.paths.as_ref().and_then(|p| p.get("/users")).and_then(|pi| pi.get.as_ref()),
-            current.paths.as_ref().and_then(|p| p.get("/users")).and_then(|pi| pi.get.as_ref()),
+            base.paths
+                .as_ref()
+                .and_then(|p| p.get("/users"))
+                .and_then(|pi| pi.get.as_ref()),
+            current
+                .paths
+                .as_ref()
+                .and_then(|p| p.get("/users"))
+                .and_then(|pi| pi.get.as_ref()),
         );
 
         assert_eq!(violations.len(), 0, "Should not detect route as removed");
@@ -246,12 +260,8 @@ mod route_tests {
         let mut current_op = operation();
         current_op.summary = Some("Same".to_string());
 
-        let violations = RouteSummaryChangedRule::detect(
-            "/users",
-            "get",
-            Some(&base_op),
-            Some(&current_op),
-        );
+        let violations =
+            RouteSummaryChangedRule::detect("/users", "get", Some(&base_op), Some(&current_op));
 
         assert_eq!(
             violations.len(),
@@ -287,10 +297,7 @@ mod route_tests {
             .violations
             .iter()
             .any(|v| v.name() == "RouteDescriptionChanged");
-        assert!(
-            has_description_changed,
-            "Should detect description change"
-        );
+        assert!(has_description_changed, "Should detect description change");
         assert_eq!(route.change_level, ChangeLevel::Change);
     }
 
@@ -305,12 +312,8 @@ mod route_tests {
         current_op.summary = Some("Summary".to_string());
         current_op.description = Some("New description added".to_string());
 
-        let violations = RouteDescriptionChangedRule::detect(
-            "/test",
-            "get",
-            Some(&base_op),
-            Some(&current_op),
-        );
+        let violations =
+            RouteDescriptionChangedRule::detect("/test", "get", Some(&base_op), Some(&current_op));
 
         assert_eq!(
             violations.len(),
@@ -371,12 +374,8 @@ mod route_tests {
         let mut current_op = operation();
         current_op.parameters = vec![param!("filter", ParameterIn::Query, true)];
 
-        let violations = RequiredParameterAddedRule::detect(
-            "/test",
-            "get",
-            Some(&base_op),
-            Some(&current_op),
-        );
+        let violations =
+            RequiredParameterAddedRule::detect("/test", "get", Some(&base_op), Some(&current_op));
 
         // Current implementation: optional parameter exists in base, so not detected as "new"
         // This is a known limitation - the rule only detects truly new required parameters
@@ -549,14 +548,14 @@ mod route_tests {
         let mut current_op = operation();
         current_op.responses = Some(BTreeMap::from([("200".to_string(), response("OK"))]));
 
-        let violations = ResponseStatusAddedRule::detect(
-            "/users",
-            "get",
-            Some(&base_op),
-            Some(&current_op),
-        );
+        let violations =
+            ResponseStatusAddedRule::detect("/users", "get", Some(&base_op), Some(&current_op));
 
-        assert_eq!(violations.len(), 0, "Should not detect when responses unchanged");
+        assert_eq!(
+            violations.len(),
+            0,
+            "Should not detect when responses unchanged"
+        );
     }
 
     #[test]
@@ -599,14 +598,14 @@ mod route_tests {
         let mut current_op = operation();
         current_op.responses = Some(BTreeMap::from([("200".to_string(), response("OK"))]));
 
-        let violations = ResponseStatusRemovedRule::detect(
-            "/users",
-            "get",
-            Some(&base_op),
-            Some(&current_op),
-        );
+        let violations =
+            ResponseStatusRemovedRule::detect("/users", "get", Some(&base_op), Some(&current_op));
 
-        assert_eq!(violations.len(), 0, "Should not detect when responses unchanged");
+        assert_eq!(
+            violations.len(),
+            0,
+            "Should not detect when responses unchanged"
+        );
     }
 
     #[test]
@@ -667,7 +666,7 @@ mod route_tests {
 
         let mut current_op = operation();
         current_op.summary = Some("Get user by ID".to_string()); // Change level
-        current_op.parameters = vec![];  // Removed parameter (Breaking)
+        current_op.parameters = vec![]; // Removed parameter (Breaking)
         current_op.responses = Some(BTreeMap::from([("200".to_string(), response("OK"))]));
 
         add_path(&mut base, "/users/{id}", "get", base_op);

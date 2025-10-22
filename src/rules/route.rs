@@ -1,6 +1,6 @@
-use oas3::spec::ObjectOrReference::Object;
 use crate::rules::{Rule, RuleCategory};
 use crate::ChangeLevel;
+use oas3::spec::ObjectOrReference::Object;
 use oas3::spec::Operation;
 
 /// Trait for route-level detection rules
@@ -600,7 +600,7 @@ impl RouteRule for RequestSchemaChangedRule {
 impl RequestSchemaChangedRule {
     fn extract_request_schemas(op: &Operation) -> std::collections::HashMap<String, String> {
         let mut schemas = std::collections::HashMap::new();
-        
+
         if let Some(request_body) = &op.request_body {
             if let oas3::spec::ObjectOrReference::Object(body) = request_body {
                 for (content_type, media_type) in &body.content {
@@ -612,15 +612,17 @@ impl RequestSchemaChangedRule {
                 }
             }
         }
-        
+
         schemas
     }
 
-    fn extract_schema_name(schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>) -> Option<String> {
+    fn extract_schema_name(
+        schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>,
+    ) -> Option<String> {
         match schema {
-            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => {
-                ref_path.strip_prefix("#/components/schemas/").map(|s| s.to_string())
-            }
+            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => ref_path
+                .strip_prefix("#/components/schemas/")
+                .map(|s| s.to_string()),
             _ => None,
         }
     }
@@ -642,7 +644,10 @@ impl Rule for ResponseSchemaChangedRule {
     }
 
     fn description(&self) -> String {
-        format!("Response schema '{}' changed for status {}", self.schema_name, self.status_code)
+        format!(
+            "Response schema '{}' changed for status {}",
+            self.schema_name, self.status_code
+        )
     }
 
     fn change_level(&self) -> ChangeLevel {
@@ -675,7 +680,9 @@ impl RouteRule for ResponseSchemaChangedRule {
 
                 // Check for changed schemas
                 for ((status_code, content_type), schema_name) in &current_schemas {
-                    if let Some(base_schema_name) = base_schemas.get(&(status_code.clone(), content_type.clone())) {
+                    if let Some(base_schema_name) =
+                        base_schemas.get(&(status_code.clone(), content_type.clone()))
+                    {
                         if base_schema_name != schema_name {
                             rules.push(Self {
                                 path: path.to_string(),
@@ -696,31 +703,38 @@ impl RouteRule for ResponseSchemaChangedRule {
 }
 
 impl ResponseSchemaChangedRule {
-    fn extract_response_schemas(op: &Operation) -> std::collections::HashMap<(String, String), String> {
+    fn extract_response_schemas(
+        op: &Operation,
+    ) -> std::collections::HashMap<(String, String), String> {
         let mut schemas = std::collections::HashMap::new();
-        
+
         if let Some(responses) = &op.responses {
             for (status_code, response_ref) in responses {
                 if let oas3::spec::ObjectOrReference::Object(response) = response_ref {
                     for (content_type, media_type) in &response.content {
                         if let Some(schema) = &media_type.schema {
                             if let Some(schema_name) = Self::extract_schema_name(schema) {
-                                schemas.insert((status_code.clone(), content_type.clone()), schema_name);
+                                schemas.insert(
+                                    (status_code.clone(), content_type.clone()),
+                                    schema_name,
+                                );
                             }
                         }
                     }
                 }
             }
         }
-        
+
         schemas
     }
 
-    fn extract_schema_name(schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>) -> Option<String> {
+    fn extract_schema_name(
+        schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>,
+    ) -> Option<String> {
         match schema {
-            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => {
-                ref_path.strip_prefix("#/components/schemas/").map(|s| s.to_string())
-            }
+            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => ref_path
+                .strip_prefix("#/components/schemas/")
+                .map(|s| s.to_string()),
             _ => None,
         }
     }
