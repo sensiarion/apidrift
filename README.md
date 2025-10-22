@@ -151,6 +151,8 @@ I want to create diff tool, that:
 
 
 ## TODO
+- [ ] show schema name for property changes in schema, not just `Single(array)`
+- [ ] fix installation script into repo (scripts from releases works fine)
 - [ ] fix route checks (shows incorrect addition/removal of params)
 - [ ] mark input/response schemas in routes more explicitly
 - [x] verbose all fields for SchemaAddedRule
@@ -170,7 +172,14 @@ I want to create diff tool, that:
 - [ ] version change tracking
 - [ ] headers tracking
 
+### Future features
 
+- [ ] tracking of non schema body changes in routes.
+  - This project is mainly suited for auto generated openapi specs with schemas
 
+- [ ] others export formats (markdown, json)
+  - markdown is mostly to pass those changes to llm
+
+- [ ] filter affecting routes by tag (produce changes only for routes (and schemas related to those routes), that marked with specified tag)
 
 ## Inspired

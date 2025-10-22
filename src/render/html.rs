@@ -42,6 +42,8 @@ struct RouteData {
     differences: Vec<DifferenceData>,
     request_schemas: Vec<SchemaLinkData>,
     response_schemas: Vec<SchemaLinkData>,
+    has_request_schema_changes: bool,
+    has_response_schema_changes: bool,
 }
 
 #[derive(Serialize)]
@@ -82,6 +84,17 @@ struct GroupedChange {
     // For single-schema grouping
     is_schema_grouped: bool, // true if this groups multiple changes for one schema
     changes: Vec<ChangeItem>, // list of individual changes (for schema-grouped items)
+    // New fields for consolidated display
+    schema_name: Option<String>, // The main schema name (for schema-grouped items)
+    route_names: Vec<String>, // Routes that use this schema
+    route_schema_usage: Vec<RouteSchemaUsage>, // Detailed usage info for each route
+}
+
+#[derive(Serialize, Clone)]
+struct RouteSchemaUsage {
+    route_name: String,
+    usage_type: String, // "request" or "response"
+    emoji: String, // "📤" for request, "📥" for response
 }
 
 #[derive(Serialize, Clone)]
@@ -161,8 +174,8 @@ impl HtmlRenderer {
         }
 
         // Group schema and route changes separately and combine
-        let mut grouped_changes = self.group_repeating_changes(schema_results);
-        let route_grouped = self.group_repeating_changes(route_results);
+        let mut grouped_changes = self.group_repeating_changes_with_route_infos(schema_results, route_infos);
+        let route_grouped = self.group_repeating_changes_with_route_infos(route_results, route_infos);
         grouped_changes.extend(route_grouped);
 
         // Convert schema results
@@ -209,11 +222,24 @@ impl HtmlRenderer {
                     }
                 };
 
-                let differences = result
-                    .violations
-                    .iter()
-                    .map(|violation| self.convert_violation(violation))
-                    .collect();
+                // Filter out schema violations and detect schema changes
+                let mut differences = Vec::new();
+                let mut has_request_schema_changes = false;
+                let mut has_response_schema_changes = false;
+
+                for violation in &result.violations {
+                    let diff = self.convert_violation(violation);
+                    let description = &diff.description;
+                    
+                    if description.contains("Request schema") || description.contains("RequestSchemaViolation") {
+                        has_request_schema_changes = true;
+                    } else if description.contains("Response schema") || description.contains("ResponseSchemaViolation") {
+                        has_response_schema_changes = true;
+                    } else {
+                        // Only include non-schema violations in differences
+                        differences.push(diff);
+                    }
+                }
 
                 // Find route info for this route
                 let parts: Vec<&str> = result.name.split_whitespace().collect();
@@ -252,6 +278,8 @@ impl HtmlRenderer {
                     differences,
                     request_schemas,
                     response_schemas,
+                    has_request_schema_changes,
+                    has_response_schema_changes,
                 }
             })
             .collect();
@@ -349,7 +377,38 @@ impl HtmlRenderer {
     }
 
     fn group_repeating_changes(&self, results: &[MatchResult]) -> Vec<GroupedChange> {
+        self.group_repeating_changes_with_route_infos(results, &[])
+    }
+
+    fn group_repeating_changes_with_route_infos(&self, results: &[MatchResult], route_infos: &[RouteInfo]) -> Vec<GroupedChange> {
         let mut change_map: HashMap<String, (DifferenceData, Vec<String>, bool)> = HashMap::new();
+        let mut route_schema_map: HashMap<String, Vec<String>> = HashMap::new(); // schema_name -> routes using it
+        let mut route_schema_usage_map: HashMap<String, Vec<RouteSchemaUsage>> = HashMap::new(); // schema_name -> detailed usage info
+
+        // Build comprehensive schema-to-routes mapping from route_infos
+        for route_info in route_infos {
+            let route_name = format!("{} {}", route_info.method.to_uppercase(), route_info.path);
+            
+            // Add request schemas
+            for schema_ref in &route_info.request_schemas {
+                route_schema_map.entry(schema_ref.schema_name.clone()).or_insert_with(Vec::new).push(route_name.clone());
+                route_schema_usage_map.entry(schema_ref.schema_name.clone()).or_insert_with(Vec::new).push(RouteSchemaUsage {
+                    route_name: route_name.clone(),
+                    usage_type: "input".to_string(),
+                    emoji: "⬇️".to_string(),
+                });
+            }
+            
+            // Add response schemas
+            for schema_ref in &route_info.response_schemas {
+                route_schema_map.entry(schema_ref.schema_name.clone()).or_insert_with(Vec::new).push(route_name.clone());
+                route_schema_usage_map.entry(schema_ref.schema_name.clone()).or_insert_with(Vec::new).push(RouteSchemaUsage {
+                    route_name: route_name.clone(),
+                    usage_type: "output".to_string(),
+                    emoji: "⬆️".to_string(),
+                });
+            }
+        }
 
         // Collect all changes and their schemas
         for result in results {
@@ -364,6 +423,23 @@ impl HtmlRenderer {
 
             for violation in &result.violations {
                 let diff_data = self.convert_violation(violation);
+                
+                // Check if this is a route schema violation (RequestSchemaViolation or ResponseSchemaViolation)
+                let is_route_schema_violation = violation.name() == "RequestSchemaViolation" || violation.name() == "ResponseSchemaViolation";
+                
+                if is_route_schema_violation {
+                    // Extract schema name from route schema violation description
+                    // Format: "Request schema 'SchemaName' (content-type) - original_description"
+                    // or "Response schema 'SchemaName' (content-type) for status 200 - original_description"
+                    let description = violation.description();
+                    if let Some(schema_name) = self.extract_schema_name_from_route_violation(&description) {
+                        route_schema_map.entry(schema_name).or_insert_with(Vec::new).push(result.name.clone());
+                        
+                        // Skip adding this to change_map as it will be handled by the schema change
+                        continue;
+                    }
+                }
+                
                 let key = self.create_change_key(&diff_data);
 
                 let entry = change_map
@@ -389,6 +465,22 @@ impl HtmlRenderer {
 
             if schema_names.len() > 1 {
                 // Multiple schemas - group by change type
+                // Collect all routes that use any of these schemas
+                let mut all_route_names = Vec::new();
+                let mut all_route_usage = Vec::new();
+                for schema_name in &schema_names {
+                    if let Some(routes) = route_schema_map.get(schema_name) {
+                        all_route_names.extend(routes.clone());
+                    }
+                    if let Some(usage) = route_schema_usage_map.get(schema_name) {
+                        all_route_usage.extend(usage.clone());
+                    }
+                }
+                all_route_names.sort();
+                all_route_names.dedup();
+                all_route_usage.sort_by(|a, b| a.route_name.cmp(&b.route_name));
+                all_route_usage.dedup_by(|a, b| a.route_name == b.route_name);
+                
                 multi_occurrence.push(GroupedChange {
                     change_key: key,
                     emoji: diff.emoji,
@@ -400,6 +492,9 @@ impl HtmlRenderer {
                     is_route_change: is_route,
                     is_schema_grouped: false,
                     changes: vec![],
+                    schema_name: None,
+                    route_names: all_route_names,
+                    route_schema_usage: all_route_usage,
                 });
             } else if schema_names.len() == 1 {
                 // Single schema - collect all changes for this schema
@@ -445,6 +540,10 @@ impl HtmlRenderer {
                 })
                 .collect();
 
+            // Get routes that use this schema (if any)
+            let route_names = route_schema_map.get(&schema_name).cloned().unwrap_or_default();
+            let route_schema_usage = route_schema_usage_map.get(&schema_name).cloned().unwrap_or_default();
+
             multi_occurrence.push(GroupedChange {
                 change_key: schema_name.clone(),
                 emoji: if is_route { "🛣️" } else { "🔧" }.to_string(),
@@ -452,10 +551,13 @@ impl HtmlRenderer {
                 change_level: overall_level_str.to_string(),
                 change_level_class: overall_level,
                 details: vec![],
-                schema_names: vec![schema_name],
+                schema_names: vec![schema_name.clone()],
                 is_route_change: is_route,
                 is_schema_grouped: true,
                 changes: change_items,
+                schema_name: Some(schema_name.clone()),
+                route_names,
+                route_schema_usage,
             });
         }
 
@@ -483,6 +585,28 @@ impl HtmlRenderer {
         });
 
         multi_occurrence
+    }
+
+    fn extract_schema_name_from_route_violation(&self, description: &str) -> Option<String> {
+        // Extract schema name from route schema violation description
+        // Format: "Request schema 'SchemaName' (content-type) - original_description"
+        // or "Response schema 'SchemaName' (content-type) for status 200 - original_description"
+        
+        if description.starts_with("Request schema '") {
+            if let Some(start) = description.find("'") {
+                if let Some(end) = description[start + 1..].find("'") {
+                    return Some(description[start + 1..start + 1 + end].to_string());
+                }
+            }
+        } else if description.starts_with("Response schema '") {
+            if let Some(start) = description.find("'") {
+                if let Some(end) = description[start + 1..].find("'") {
+                    return Some(description[start + 1..start + 1 + end].to_string());
+                }
+            }
+        }
+        
+        None
     }
 
     fn merge_descriptions(&self, desc1: &str, desc2: &str) -> String {
@@ -612,6 +736,8 @@ impl HtmlRenderer {
             "ParameterRemoved" => ("⚠️", vec![]),
             "ResponseStatusAdded" => ("➕", vec![]),
             "ResponseStatusRemoved" => ("➖", vec![]),
+            "RequestSchemaViolation" => ("📋", vec![]),
+            "ResponseSchemaViolation" => ("📋", vec![]),
             _ => ("❔", vec![]),
         };
 

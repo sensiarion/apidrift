@@ -232,7 +232,7 @@ fn main() {
 
     // Create route matcher and compare routes
     let route_matcher = matcher::RouteMatcher::new(&base, &current);
-    let route_results = route_matcher.match_routes();
+    let route_results = route_matcher.match_routes_with_schema_violations(&schema_results);
     let route_infos = route_matcher.get_all_routes_with_schemas();
 
     // Display stats

@@ -72,6 +72,11 @@
         margin-left: 8px;
     }
 
+    .count-badge.route-badge {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
     .grouped-body {
         padding: 12px 16px 16px 16px;
         display: none;
@@ -124,6 +129,22 @@
         background: #dbeafe;
         border-color: #2563eb;
         transform: translateY(-1px);
+    }
+
+    .route-chip {
+        background: #fef3c7;
+        border-color: #f59e0b;
+        color: #92400e;
+    }
+
+    .route-chip:hover {
+        background: #fde68a;
+        border-color: #d97706;
+    }
+
+    .usage-emoji {
+        margin-right: 4px;
+        font-size: 0.8rem;
     }
 
     .schema-chip-no-changes {
@@ -225,6 +246,9 @@
                     <span class="change-emoji">{{ change.emoji }}</span>
                     <span>{{ change.description }}</span>
                     <span class="count-badge">{{ change.changes | length }} changes</span>
+                    {% if change.route_names | length > 0 %}
+                    <span class="count-badge route-badge">{{ change.route_names | length }} routes</span>
+                    {% endif %}
                     {% else %}
                     {# Change-grouped: show change description with schema count #}
                     {% if change.is_route_change %}
@@ -234,6 +258,9 @@
                     {% endif %}
                     <span>{{ change.description }}</span>
                     <span class="count-badge">{{ change.schema_names | length }} {% if change.is_route_change %}routes{% else %}schemas{% endif %}</span>
+                    {% if not change.is_route_change and change.route_names | length > 0 %}
+                    <span class="count-badge route-badge">{{ change.route_names | length }} routes</span>
+                    {% endif %}
                     {% endif %}
                 </div>
                 <span class="badge {{ change.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ change.change_level_class }}')">{{ change.change_level }}</span>
@@ -269,7 +296,13 @@
                 {% endif %}
                 {% endif %}
                 
+                {# Schema chips section #}
                 <div class="schema-chips">
+                    {% if change.is_schema_grouped and change.schema_name %}
+                    {# Show schema link for schema-grouped changes #}
+                    <a href="#schema-{{ change.schema_name }}" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">{{ change.schema_name }}</a>
+                    {% else %}
+                    {# Show all schema names for grouped changes #}
                     {% for schema_name in change.schema_names %}
                     {% if change.is_route_change %}
                     <a href="#route-{{ schema_name | replace(from=' ', to='-') }}" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">{{ schema_name }}</a>
@@ -277,7 +310,19 @@
                     <a href="#schema-{{ schema_name }}" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">{{ schema_name }}</a>
                     {% endif %}
                     {% endfor %}
+                    {% endif %}
                 </div>
+                
+                {# Route chips section #}
+                {% if change.route_schema_usage | length > 0 %}
+                <div class="schema-chips">
+                    {% for usage in change.route_schema_usage %}
+                    <a href="#route-{{ usage.route_name | replace(from=' ', to='-') }}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="{{ usage.usage_type | capitalize }} schema">
+                        <span class="usage-emoji">{{ usage.emoji }}</span>{{ usage.route_name }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

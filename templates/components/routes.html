@@ -72,6 +72,11 @@
                 <div>
                     <span class="toggle-icon">▶</span>
                     <span class="schema-name">{{ route.method }} {{ route.path }}</span>
+                    {% if route.has_request_schema_changes or route.has_response_schema_changes %}
+                    <span style="margin-left: 8px; font-size: 0.7rem; color: #64748b; font-weight: 500;">
+                        {% if route.has_request_schema_changes %}📥{% endif %}{% if route.has_response_schema_changes %}📤{% endif %}
+                    </span>
+                    {% endif %}
                 </div>
                 <span class="badge {{ route.change_level_class }}" onclick="event.stopPropagation(); filterByChangeLevel('{{ route.change_level_class }}')">{{ route.change_level }}</span>
             </div>

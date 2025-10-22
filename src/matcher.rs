@@ -466,6 +466,11 @@ impl<'a> RouteMatcher<'a> {
 
     /// Match routes between base and current versions
     pub fn match_routes(&self) -> Vec<MatchResult> {
+        self.match_routes_with_schema_violations(&[])
+    }
+
+    /// Match routes between base and current versions, including schema violations
+    pub fn match_routes_with_schema_violations(&self, schema_results: &[MatchResult]) -> Vec<MatchResult> {
         let mut results = Vec::new();
 
         // Get all paths from both versions
@@ -497,13 +502,26 @@ impl<'a> RouteMatcher<'a> {
                     continue;
                 }
 
-                if base_op.is_some() && current_op.is_some() && base_op == current_op {
-                    continue;
+                // Check if operations are identical (but still process if schemas have changes)
+                let operations_identical = if base_op.is_some() && current_op.is_some() {
+                    base_op == current_op
+                } else {
+                    false
+                };
+
+                let mut violations = Vec::new();
+
+                // Only compare operations if they're not identical
+                if !operations_identical {
+                    info!("Route {} {} not same ", method, path);
+                    violations.extend(self.compare_operations(&path, method, base_op, current_op));
                 }
 
-                info!("Route {} {} not same ", method, path);
-
-                let violations = self.compare_operations(&path, method, base_op, current_op);
+                // Always check for schema violations for this route's schemas
+                if let Some(current_op) = current_op {
+                    let route_schemas = self.extract_route_schemas(&path, method, current_op);
+                    violations.extend(self.get_schema_violations_for_route(&route_schemas, schema_results));
+                }
 
                 if !violations.is_empty() {
                     let route_name = format!("{} {}", method.to_uppercase(), path);
@@ -582,6 +600,18 @@ impl<'a> RouteMatcher<'a> {
 
             violations.extend(
                 self.detect_route_rule_violations::<ResponseStatusRemovedRule>(
+                    path, method, base, current,
+                ),
+            );
+
+            violations.extend(
+                self.detect_route_rule_violations::<RequestSchemaChangedRule>(
+                    path, method, base, current,
+                ),
+            );
+
+            violations.extend(
+                self.detect_route_rule_violations::<ResponseSchemaChangedRule>(
                     path, method, base, current,
                 ),
             );
@@ -685,6 +715,160 @@ impl<'a> RouteMatcher<'a> {
         }
 
         routes
+    }
+
+    /// Get schema violations for schemas used in a route
+    fn get_schema_violations_for_route(&self, route_schemas: &RouteInfo, schema_results: &[MatchResult]) -> Vec<RuleViolation> {
+        let mut violations = Vec::new();
+        
+        // Create a map of schema names to their violations for quick lookup
+        let schema_violations_map: std::collections::HashMap<String, Vec<&RuleViolation>> = schema_results
+            .iter()
+            .flat_map(|result| {
+                result.violations.iter().map(|violation| (result.name.clone(), violation))
+            })
+            .fold(std::collections::HashMap::new(), |mut acc, (schema_name, violation)| {
+                acc.entry(schema_name).or_insert_with(Vec::new).push(violation);
+                acc
+            });
+
+        // Check request schemas
+        for schema_ref in &route_schemas.request_schemas {
+            if let Some(schema_violations) = schema_violations_map.get(&schema_ref.schema_name) {
+                for violation in schema_violations {
+                    violations.push(RuleViolation::new(Box::new(RequestSchemaViolationWrapper {
+                        schema_name: schema_ref.schema_name.clone(),
+                        content_type: schema_ref.content_type.clone(),
+                        violation: RuleViolation::new(Box::new(SchemaViolationInfo {
+                            name: violation.name().to_string(),
+                            description: violation.description(),
+                            change_level: violation.change_level(),
+                            context: violation.context(),
+                            category: violation.category(),
+                        })),
+                    })));
+                }
+            }
+        }
+
+        // Check response schemas
+        for schema_ref in &route_schemas.response_schemas {
+            if let Some(schema_violations) = schema_violations_map.get(&schema_ref.schema_name) {
+                for violation in schema_violations {
+                    violations.push(RuleViolation::new(Box::new(ResponseSchemaViolationWrapper {
+                        schema_name: schema_ref.schema_name.clone(),
+                        content_type: schema_ref.content_type.clone(),
+                        status_code: match &schema_ref.location {
+                            SchemaLocation::Response(code) => code.clone(),
+                            _ => "unknown".to_string(),
+                        },
+                        violation: RuleViolation::new(Box::new(SchemaViolationInfo {
+                            name: violation.name().to_string(),
+                            description: violation.description(),
+                            change_level: violation.change_level(),
+                            context: violation.context(),
+                            category: violation.category(),
+                        })),
+                    })));
+                }
+            }
+        }
+
+        violations
+    }
+}
+
+/// Simple wrapper to store violation info without cloning RuleViolation
+#[derive(Debug)]
+struct SchemaViolationInfo {
+    name: String,
+    description: String,
+    change_level: crate::ChangeLevel,
+    context: crate::rules::ChangeAnchor,
+    category: crate::rules::RuleCategory,
+}
+
+impl crate::rules::Rule for SchemaViolationInfo {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> String {
+        self.description.clone()
+    }
+
+    fn change_level(&self) -> crate::ChangeLevel {
+        self.change_level.clone()
+    }
+
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        self.context.clone()
+    }
+
+    fn category(&self) -> crate::rules::RuleCategory {
+        self.category.clone()
+    }
+}
+
+/// Wrapper to add schema context to schema violations for routes
+#[derive(Debug)]
+struct RequestSchemaViolationWrapper {
+    schema_name: String,
+    content_type: String,
+    violation: RuleViolation,
+}
+
+impl crate::rules::Rule for RequestSchemaViolationWrapper {
+    fn name(&self) -> &str {
+        "RequestSchemaViolation"
+    }
+
+    fn description(&self) -> String {
+        format!("Request schema '{}' ({}) - {}", self.schema_name, self.content_type, self.violation.description())
+    }
+
+    fn change_level(&self) -> crate::ChangeLevel {
+        self.violation.change_level()
+    }
+
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Route
+    }
+
+    fn category(&self) -> crate::rules::RuleCategory {
+        crate::rules::RuleCategory::RequestBody
+    }
+}
+
+/// Wrapper to add schema context to schema violations for routes
+#[derive(Debug)]
+struct ResponseSchemaViolationWrapper {
+    schema_name: String,
+    content_type: String,
+    status_code: String,
+    violation: RuleViolation,
+}
+
+impl crate::rules::Rule for ResponseSchemaViolationWrapper {
+    fn name(&self) -> &str {
+        "ResponseSchemaViolation"
+    }
+
+    fn description(&self) -> String {
+        format!("Response schema '{}' ({}) for status {} - {}", 
+                self.schema_name, self.content_type, self.status_code, self.violation.description())
+    }
+
+    fn change_level(&self) -> crate::ChangeLevel {
+        self.violation.change_level()
+    }
+
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::ResponseStatus(self.status_code.clone())
+    }
+
+    fn category(&self) -> crate::rules::RuleCategory {
+        crate::rules::RuleCategory::Response
     }
 }
 

@@ -529,3 +529,199 @@ impl RouteRule for ResponseStatusRemovedRule {
         }
     }
 }
+
+/// Rule: Request schema changed
+#[derive(Debug, Clone)]
+pub struct RequestSchemaChangedRule {
+    pub path: String,
+    pub method: String,
+    pub schema_name: String,
+    pub content_type: String,
+}
+
+impl Rule for RequestSchemaChangedRule {
+    fn name(&self) -> &str {
+        "RequestSchemaChanged"
+    }
+
+    fn description(&self) -> String {
+        format!("Request schema '{}' changed", self.schema_name)
+    }
+
+    fn change_level(&self) -> ChangeLevel {
+        ChangeLevel::Breaking
+    }
+
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::Route
+    }
+
+    fn category(&self) -> RuleCategory {
+        RuleCategory::RequestBody
+    }
+}
+
+impl RouteRule for RequestSchemaChangedRule {
+    fn detect(
+        path: &str,
+        method: &str,
+        base: Option<&Operation>,
+        current: Option<&Operation>,
+    ) -> Vec<Self> {
+        match (base, current) {
+            (Some(base_op), Some(current_op)) => {
+                let mut rules = Vec::new();
+
+                // Compare request body schemas
+                let base_schemas = Self::extract_request_schemas(base_op);
+                let current_schemas = Self::extract_request_schemas(current_op);
+
+                // Check for changed schemas
+                for (content_type, schema_name) in &current_schemas {
+                    if let Some(base_schema_name) = base_schemas.get(content_type) {
+                        if base_schema_name != schema_name {
+                            rules.push(Self {
+                                path: path.to_string(),
+                                method: method.to_string(),
+                                schema_name: schema_name.clone(),
+                                content_type: content_type.clone(),
+                            });
+                        }
+                    }
+                }
+
+                rules
+            }
+            _ => vec![],
+        }
+    }
+}
+
+impl RequestSchemaChangedRule {
+    fn extract_request_schemas(op: &Operation) -> std::collections::HashMap<String, String> {
+        let mut schemas = std::collections::HashMap::new();
+        
+        if let Some(request_body) = &op.request_body {
+            if let oas3::spec::ObjectOrReference::Object(body) = request_body {
+                for (content_type, media_type) in &body.content {
+                    if let Some(schema) = &media_type.schema {
+                        if let Some(schema_name) = Self::extract_schema_name(schema) {
+                            schemas.insert(content_type.clone(), schema_name);
+                        }
+                    }
+                }
+            }
+        }
+        
+        schemas
+    }
+
+    fn extract_schema_name(schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>) -> Option<String> {
+        match schema {
+            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => {
+                ref_path.strip_prefix("#/components/schemas/").map(|s| s.to_string())
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Rule: Response schema changed
+#[derive(Debug, Clone)]
+pub struct ResponseSchemaChangedRule {
+    pub path: String,
+    pub method: String,
+    pub schema_name: String,
+    pub content_type: String,
+    pub status_code: String,
+}
+
+impl Rule for ResponseSchemaChangedRule {
+    fn name(&self) -> &str {
+        "ResponseSchemaChanged"
+    }
+
+    fn description(&self) -> String {
+        format!("Response schema '{}' changed for status {}", self.schema_name, self.status_code)
+    }
+
+    fn change_level(&self) -> ChangeLevel {
+        ChangeLevel::Breaking
+    }
+
+    fn context(&self) -> crate::rules::ChangeAnchor {
+        crate::rules::ChangeAnchor::ResponseStatus(self.status_code.clone())
+    }
+
+    fn category(&self) -> RuleCategory {
+        RuleCategory::Response
+    }
+}
+
+impl RouteRule for ResponseSchemaChangedRule {
+    fn detect(
+        path: &str,
+        method: &str,
+        base: Option<&Operation>,
+        current: Option<&Operation>,
+    ) -> Vec<Self> {
+        match (base, current) {
+            (Some(base_op), Some(current_op)) => {
+                let mut rules = Vec::new();
+
+                // Compare response schemas
+                let base_schemas = Self::extract_response_schemas(base_op);
+                let current_schemas = Self::extract_response_schemas(current_op);
+
+                // Check for changed schemas
+                for ((status_code, content_type), schema_name) in &current_schemas {
+                    if let Some(base_schema_name) = base_schemas.get(&(status_code.clone(), content_type.clone())) {
+                        if base_schema_name != schema_name {
+                            rules.push(Self {
+                                path: path.to_string(),
+                                method: method.to_string(),
+                                schema_name: schema_name.clone(),
+                                content_type: content_type.clone(),
+                                status_code: status_code.clone(),
+                            });
+                        }
+                    }
+                }
+
+                rules
+            }
+            _ => vec![],
+        }
+    }
+}
+
+impl ResponseSchemaChangedRule {
+    fn extract_response_schemas(op: &Operation) -> std::collections::HashMap<(String, String), String> {
+        let mut schemas = std::collections::HashMap::new();
+        
+        if let Some(responses) = &op.responses {
+            for (status_code, response_ref) in responses {
+                if let oas3::spec::ObjectOrReference::Object(response) = response_ref {
+                    for (content_type, media_type) in &response.content {
+                        if let Some(schema) = &media_type.schema {
+                            if let Some(schema_name) = Self::extract_schema_name(schema) {
+                                schemas.insert((status_code.clone(), content_type.clone()), schema_name);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        schemas
+    }
+
+    fn extract_schema_name(schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>) -> Option<String> {
+        match schema {
+            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => {
+                ref_path.strip_prefix("#/components/schemas/").map(|s| s.to_string())
+            }
+            _ => None,
+        }
+    }
+}
