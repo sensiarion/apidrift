@@ -151,6 +151,7 @@ I want to create diff tool, that:
 
 
 ## TODO
+- [ ] fix errors counting (do not calc same errors multiple times)
 - [ ] show schema name for property changes in schema, not just `Single(array)`
 - [ ] fix installation script into repo (scripts from releases works fine)
 - [ ] fix route checks (shows incorrect addition/removal of params)
