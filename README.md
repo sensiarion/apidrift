@@ -150,6 +150,7 @@ I want to create diff tool, that:
 - accepts both yaml and json format
 
 
+
 ## TODO
 - [ ] fix errors counting (do not calc same errors multiple times)
 - [ ] show schema name for property changes in schema, not just `Single(array)`
