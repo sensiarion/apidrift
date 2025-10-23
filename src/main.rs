@@ -16,7 +16,6 @@ pub enum OutputFormat {
     // Json,
 }
 
-
 #[derive(Parser)]
 #[command(name = "apidrift")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
