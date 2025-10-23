@@ -1,11 +1,21 @@
 use apidrift::matcher;
 use apidrift::render::html::HtmlRenderer;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use env_logger::Env;
 use oas3::OpenApiV3Spec;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Available output formats
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+pub enum OutputFormat {
+    /// Generate an HTML report
+    Html,
+    // Future: add more (e.g. Json, Markdown, etc.)
+    // Json,
+}
+
 
 #[derive(Parser)]
 #[command(name = "apidrift")]
@@ -45,6 +55,16 @@ struct Cli {
     /// More verbose output
     #[arg(long = "vv")]
     more_verbose: bool,
+
+    /// Output format
+    #[arg(
+        short = 'f',
+        long = "format",
+        value_enum,
+        default_value = "html",
+        value_name = "FORMAT"
+    )]
+    pub format: OutputFormat,
 }
 
 fn detect_format(path: &Path) -> Result<&'static str, String> {
