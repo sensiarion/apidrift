@@ -17,3 +17,9 @@ install-path = "CARGO_HOME"
 install-updater = false
 # Allow custom modifications to CI workflow (we added test steps)
 allow-dirty = ["ci"]
+
+# GitHub Actions runner overrides per target.
+# Needed because older macOS runner images (e.g. macos-13) get retired over time.
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-14"
+x86_64-apple-darwin = "macos-14"
