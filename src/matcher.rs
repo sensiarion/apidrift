@@ -364,7 +364,6 @@ impl<'a> SchemaMatcher<'a> {
 
         for (prop_name, current_prop) in current_props {
             if let Some(base_prop) = base_props.get(prop_name) {
-                // Build nested property path
                 let nested_path = if property_path.is_empty() {
                     prop_name.clone()
                 } else {
@@ -573,13 +572,7 @@ impl<'a> RouteMatcher<'a> {
         // If both operations exist, compare details
         if base.is_some() && current.is_some() {
             violations.extend(
-                self.detect_route_rule_violations::<RouteDescriptionChangedRule>(
-                    path, method, base, current,
-                ),
-            );
-
-            violations.extend(
-                self.detect_route_rule_violations::<RouteSummaryChangedRule>(
+                self.detect_route_rule_violations::<RouteInfoChangedRule>(
                     path, method, base, current,
                 ),
             );

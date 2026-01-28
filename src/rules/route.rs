@@ -1,7 +1,10 @@
+use crate::rules::extract_helpers::extract_schema_name;
+use crate::rules::ChangeAnchor;
 use crate::rules::{Rule, RuleCategory};
 use crate::ChangeLevel;
+use log::debug;
 use oas3::spec::ObjectOrReference::Object;
-use oas3::spec::Operation;
+use oas3::spec::{ObjectOrReference, Operation};
 
 /// Trait for route-level detection rules
 pub trait RouteRule: Rule {
@@ -90,8 +93,8 @@ impl Rule for RouteRemovedRule {
         ChangeLevel::Breaking
     }
 
-    fn context(&self) -> crate::rules::ChangeAnchor {
-        crate::rules::ChangeAnchor::Route
+    fn context(&self) -> ChangeAnchor {
+        ChangeAnchor::Route
     }
 
     fn category(&self) -> RuleCategory {
@@ -117,23 +120,25 @@ impl RouteRule for RouteRemovedRule {
     }
 }
 
-/// Rule: Route description changed
+/// Rule: Route self prop changed (like description or summary)
 #[derive(Debug, Clone)]
-pub struct RouteDescriptionChangedRule {
+pub struct RouteInfoChangedRule {
     pub path: String,
     pub method: String,
-    pub old_description: String,
-    pub new_description: String,
+    pub prop_name: String,
+    pub old_value: String,
+    pub new_value: String,
 }
 
-impl Rule for RouteDescriptionChangedRule {
+impl Rule for RouteInfoChangedRule {
     fn name(&self) -> &str {
-        "RouteDescriptionChanged"
+        "RouteInfoChanged"
     }
 
     fn description(&self) -> String {
         format!(
-            "Description Changed: {} {}",
+            "{} Changed: {} {}",
+            self.prop_name,
             self.method.to_uppercase(),
             self.path
         )
@@ -143,8 +148,8 @@ impl Rule for RouteDescriptionChangedRule {
         ChangeLevel::Change
     }
 
-    fn context(&self) -> crate::rules::ChangeAnchor {
-        crate::rules::ChangeAnchor::Route
+    fn context(&self) -> ChangeAnchor {
+        ChangeAnchor::Route
     }
 
     fn category(&self) -> RuleCategory {
@@ -152,7 +157,7 @@ impl Rule for RouteDescriptionChangedRule {
     }
 }
 
-impl RouteRule for RouteDescriptionChangedRule {
+impl RouteRule for RouteInfoChangedRule {
     fn detect(
         path: &str,
         method: &str,
@@ -161,87 +166,72 @@ impl RouteRule for RouteDescriptionChangedRule {
     ) -> Vec<Self> {
         match (base, current) {
             (Some(base_op), Some(current_op)) => {
-                let base_desc = base_op.description.as_deref().unwrap_or("");
-                let current_desc = current_op.description.as_deref().unwrap_or("");
+                let mut changed_props = Vec::new();
+                Self::add_if_change(
+                    path,
+                    method,
+                    base_op.description.to_owned(),
+                    current_op.description.to_owned(),
+                    "Description",
+                    &mut changed_props,
+                );
+                Self::add_if_change(
+                    path,
+                    method,
+                    base_op.summary.to_owned(),
+                    current_op.summary.to_owned(),
+                    "Summary",
+                    &mut changed_props,
+                );
 
-                if base_desc != current_desc && !base_desc.is_empty() && !current_desc.is_empty() {
-                    vec![Self {
-                        path: path.to_string(),
-                        method: method.to_string(),
-                        old_description: base_desc.to_string(),
-                        new_description: current_desc.to_string(),
-                    }]
-                } else {
-                    vec![]
-                }
+                changed_props
             }
-            _ => vec![],
+            _ => {
+                vec![]
+            }
         }
     }
 }
 
-/// Rule: Route summary changed
-#[derive(Debug, Clone)]
-pub struct RouteSummaryChangedRule {
-    pub path: String,
-    pub method: String,
-    pub old_summary: String,
-    pub new_summary: String,
-}
-
-impl Rule for RouteSummaryChangedRule {
-    fn name(&self) -> &str {
-        "RouteSummaryChanged"
-    }
-
-    fn description(&self) -> String {
-        format!(
-            "Summary Changed: {} {}",
-            self.method.to_uppercase(),
-            self.path
-        )
-    }
-
-    fn change_level(&self) -> ChangeLevel {
-        ChangeLevel::Change
-    }
-
-    fn context(&self) -> crate::rules::ChangeAnchor {
-        crate::rules::ChangeAnchor::Route
-    }
-
-    fn category(&self) -> RuleCategory {
-        RuleCategory::Endpoint
-    }
-}
-
-impl RouteRule for RouteSummaryChangedRule {
-    fn detect(
+impl RouteInfoChangedRule {
+    fn add_if_change<T: PartialEq>(
         path: &str,
         method: &str,
-        base: Option<&Operation>,
-        current: Option<&Operation>,
-    ) -> Vec<Self> {
+        base: Option<T>,
+        current: Option<T>,
+        prop_name: &str,
+        changed: &mut Vec<RouteInfoChangedRule>,
+    ) where
+        std::string::String: From<T>,
+    {
         match (base, current) {
-            (Some(base_op), Some(current_op)) => {
-                let base_summary = base_op.summary.as_deref().unwrap_or("");
-                let current_summary = current_op.summary.as_deref().unwrap_or("");
-
-                if base_summary != current_summary
-                    && !base_summary.is_empty()
-                    && !current_summary.is_empty()
-                {
-                    vec![Self {
-                        path: path.to_string(),
-                        method: method.to_string(),
-                        old_summary: base_summary.to_string(),
-                        new_summary: current_summary.to_string(),
-                    }]
-                } else {
-                    vec![]
-                }
+            (None, None) => {}
+            (Some(v), None) => changed.push(RouteInfoChangedRule {
+                path: path.to_string(),
+                method: method.to_string(),
+                prop_name: prop_name.to_string(),
+                old_value: v.into(),
+                new_value: "null".into(),
+            }),
+            (None, Some(v)) => changed.push(RouteInfoChangedRule {
+                path: path.to_string(),
+                method: method.to_string(),
+                prop_name: prop_name.to_string(),
+                old_value: "null".into(),
+                new_value: v.into(),
+            }),
+            (Some(base_v), Some(current_v)) => {
+                if base_v == current_v {
+                    return;
+                };
+                changed.push(RouteInfoChangedRule {
+                    path: path.to_string(),
+                    method: method.to_string(),
+                    prop_name: prop_name.to_string(),
+                    old_value: base_v.into(),
+                    new_value: current_v.into(),
+                })
             }
-            _ => vec![],
         }
     }
 }
@@ -605,7 +595,7 @@ impl RequestSchemaChangedRule {
             if let oas3::spec::ObjectOrReference::Object(body) = request_body {
                 for (content_type, media_type) in &body.content {
                     if let Some(schema) = &media_type.schema {
-                        if let Some(schema_name) = Self::extract_schema_name(schema) {
+                        if let Some(schema_name) = extract_schema_name(schema) {
                             schemas.insert(content_type.clone(), schema_name);
                         }
                     }
@@ -614,17 +604,6 @@ impl RequestSchemaChangedRule {
         }
 
         schemas
-    }
-
-    fn extract_schema_name(
-        schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>,
-    ) -> Option<String> {
-        match schema {
-            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => ref_path
-                .strip_prefix("#/components/schemas/")
-                .map(|s| s.to_string()),
-            _ => None,
-        }
     }
 }
 
@@ -708,12 +687,24 @@ impl ResponseSchemaChangedRule {
     ) -> std::collections::HashMap<(String, String), String> {
         let mut schemas = std::collections::HashMap::new();
 
-        if let Some(responses) = &op.responses {
-            for (status_code, response_ref) in responses {
-                if let oas3::spec::ObjectOrReference::Object(response) = response_ref {
+        if op.responses.is_none() {
+            return schemas;
+        };
+
+        let responses = op.responses.as_ref().unwrap();
+        for (status_code, response_ref) in responses {
+            match response_ref {
+                ObjectOrReference::Ref { .. } => {
+                    debug!(
+                        "Skipping schema {:?}. Reference not supported yet",
+                        response_ref
+                    );
+                    continue;
+                }
+                Object(response) => {
                     for (content_type, media_type) in &response.content {
                         if let Some(schema) = &media_type.schema {
-                            if let Some(schema_name) = Self::extract_schema_name(schema) {
+                            if let Some(schema_name) = extract_schema_name(schema) {
                                 schemas.insert(
                                     (status_code.clone(), content_type.clone()),
                                     schema_name,
@@ -726,16 +717,5 @@ impl ResponseSchemaChangedRule {
         }
 
         schemas
-    }
-
-    fn extract_schema_name(
-        schema: &oas3::spec::ObjectOrReference<oas3::spec::ObjectSchema>,
-    ) -> Option<String> {
-        match schema {
-            oas3::spec::ObjectOrReference::Ref { ref_path, .. } => ref_path
-                .strip_prefix("#/components/schemas/")
-                .map(|s| s.to_string()),
-            _ => None,
-        }
     }
 }

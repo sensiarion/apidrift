@@ -755,6 +755,7 @@ impl HtmlRenderer {
         let rule_name = rule.name();
         let description = rule.description();
 
+        // TODO make single enum for all rules with calling name method
         // Map rule names to emojis and extract details
         let (emoji, details) = match rule_name {
             // Schema rules
@@ -821,6 +822,7 @@ impl Renderer for HtmlRenderer {
         let mut context = Context::new();
         context.insert("data", &data);
 
+        // TODO pass filename
         let html = self.tera.render("report.html", &context)?;
         Ok(html)
     }

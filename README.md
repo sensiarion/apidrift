@@ -152,11 +152,14 @@ I want to create diff tool, that:
 
 
 ## TODO
+
+- [ ] accept http url as source
+- [ ] refactor readme (fast start + add displayable example (i saw htmlviewer for github files yearly))
 - [ ] fix errors counting (do not calc same errors multiple times)
 - [ ] show schema name for property changes in schema, not just `Single(array)`
 - [ ] fix installation script into repo (scripts from releases works fine)
-- [ ] fix route checks (shows incorrect additiondist build/removal of params)
-- [ ] mark input/response schemas in routes more explicitly
+- [x] fix route checks (shows incorrect additiondist build/removal of params)
+- [x] mark input/response schemas in routes more explicitly
 - [x] verbose all fields for SchemaAddedRule
 - [ ] deprecation tracking
 - [ ] headers change tracking

@@ -1,9 +1,10 @@
 use apidrift::matcher;
+use apidrift::parse_error;
 use apidrift::render::html::HtmlRenderer;
 use clap::{Parser, ValueEnum};
 use env_logger::Env;
 use oas3::OpenApiV3Spec;
-use std::env;
+use serde_path_to_error::deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -97,18 +98,26 @@ fn parse_openapi(path: &Path, verbose: bool) -> Result<OpenApiV3Spec, String> {
     }
 
     match format {
-        "json" => oas3::from_json(openapi_content).map_err(|err| {
-            format!(
-                "Invalid OpenAPI JSON schema in \"{}\". Error: {}",
-                path.display(),
-                err
-            )
-        }),
-        "yaml" => oas3::from_yaml(openapi_content).map_err(|err| {
-            format!(
-                "Invalid OpenAPI YAML schema in \"{}\". Error: {}",
-                path.display(),
-                err
+        "json" => {
+            let mut deserializer = serde_json::Deserializer::from_str(&openapi_content);
+            let parsed: Result<OpenApiV3Spec, _> = deserialize(&mut deserializer);
+            parsed.map_err(|err| {
+                parse_error::format_openapi_parse_error(
+                    path,
+                    "json",
+                    &err.to_string(),
+                    &openapi_content,
+                    Some(&err.path().to_string()),
+                )
+            })
+        }
+        "yaml" => oas3::from_yaml(&openapi_content).map_err(|err| {
+            parse_error::format_openapi_parse_error(
+                path,
+                "yaml",
+                &err.to_string(),
+                &openapi_content,
+                None,
             )
         }),
         _ => unreachable!(),
@@ -246,6 +255,8 @@ fn main() {
         matcher::SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
     let schema_results = schema_matcher.match_schemas();
     let full_schema_infos = schema_matcher.build_full_schema_infos(&schema_results);
+
+    // TODO split schema and route matchers to diffenre files
 
     // Create route matcher and compare routes
     let route_matcher = matcher::RouteMatcher::new(&base, &current);

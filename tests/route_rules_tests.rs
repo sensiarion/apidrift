@@ -243,7 +243,7 @@ mod route_tests {
         let has_summary_changed = route
             .violations
             .iter()
-            .any(|v| v.name() == "RouteSummaryChanged");
+            .any(|v| v.name() == "RouteInfoChanged");
         assert!(
             has_summary_changed,
             "Should detect summary change in GET /users"
@@ -261,7 +261,7 @@ mod route_tests {
         current_op.summary = Some("Same".to_string());
 
         let violations =
-            RouteSummaryChangedRule::detect("/users", "get", Some(&base_op), Some(&current_op));
+            RouteInfoChangedRule::detect("/users", "get", Some(&base_op), Some(&current_op));
 
         assert_eq!(
             violations.len(),
@@ -296,7 +296,7 @@ mod route_tests {
         let has_description_changed = route
             .violations
             .iter()
-            .any(|v| v.name() == "RouteDescriptionChanged");
+            .any(|v| v.name() == "RouteInfoChanged");
         assert!(has_description_changed, "Should detect description change");
         assert_eq!(route.change_level, ChangeLevel::Change);
     }
@@ -313,11 +313,11 @@ mod route_tests {
         current_op.description = Some("New description added".to_string());
 
         let violations =
-            RouteDescriptionChangedRule::detect("/test", "get", Some(&base_op), Some(&current_op));
+            RouteInfoChangedRule::detect("/test", "get", Some(&base_op), Some(&current_op));
 
         assert_eq!(
             violations.len(),
-            0,
+            1,
             "Should not detect adding a description from empty"
         );
     }

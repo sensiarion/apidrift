@@ -1,4 +1,5 @@
 pub mod matcher;
+pub mod parse_error;
 pub mod render;
 pub mod rules;
 
