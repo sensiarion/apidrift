@@ -11,35 +11,45 @@ This tool is intended to help developers explore api changes in their applicatio
 ### Quick Install (Linux/macOS)
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/sensiarion/apidrift/releases/latest/download/apidrift-installer.sh | sh
+```
+
+Example output (macOS Apple Silicon):
+
+```text
+downloading apidrift 0.1.4 aarch64-apple-darwin
+installing to /Users/you/.cargo/bin
+  apidrift
+everything's installed!
 ```
 
 Or with custom installation directory:
 
 ```bash
-APIDRIFT_INSTALL_DIR=~/.local/bin curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+APIDRIFT_INSTALL_DIR="$HOME/.local" \
+  curl --proto '=https' --tlsv1.2 -LsSf https://github.com/sensiarion/apidrift/releases/latest/download/apidrift-installer.sh | sh
 ```
 
 ### Install Specific Version
 
 ```bash
-APIDRIFT_VERSION=v0.1.0 curl -sSfL https://raw.githubusercontent.com/sensiarion/apidrift/main/install.sh | bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/sensiarion/apidrift/releases/download/v0.1.4/apidrift-installer.sh | sh
 ```
 
 ### Manual Installation
 
 Download pre-built binaries from [Releases](https://github.com/sensiarion/apidrift/releases):
 
-- **Linux (x86_64)**: `apidrift-linux-x86_64.tar.gz`
-- **Linux (ARM64)**: `apidrift-linux-arm64.tar.gz`
-- **macOS (Intel)**: `apidrift-macos-x86_64.tar.gz`
-- **macOS (Apple Silicon)**: `apidrift-macos-arm64.tar.gz`
-- **Windows (x86_64)**: `apidrift-windows-x86_64.zip`
+- **Linux (x86_64)**: `apidrift-x86_64-unknown-linux-gnu.tar.xz` (or `...-musl.tar.xz`)
+- **Linux (ARM64)**: `apidrift-aarch64-unknown-linux-gnu.tar.xz` (or `...-musl.tar.xz`)
+- **macOS (Intel)**: `apidrift-x86_64-apple-darwin.tar.xz`
+- **macOS (Apple Silicon)**: `apidrift-aarch64-apple-darwin.tar.xz`
+- **Windows (x86_64)**: `apidrift-x86_64-pc-windows-msvc.zip`
 
 Extract and move the binary to your PATH:
 
 ```bash
-tar -xzf apidrift-*.tar.gz
+tar xf apidrift-*.tar.xz
 sudo mv apidrift /usr/local/bin/
 ```
 
