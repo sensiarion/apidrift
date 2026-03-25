@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: ApiDrift Sample API (base)
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+paths:
+  /users/{id}:
+    get:
+      summary: Get user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+  /users:
+    post:
+      summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /products:
+    get:
+      summary: List products
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/UserStatus"
+    CreateUserRequest:
+      type: object
+      required: [email, name]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          minLength: 1
+    Product:
+      type: object
+      required: [id, name, price]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+          format: double
+        category:
+          type: string
+          enum: [electronics, clothing, food]
+    UserStatus:
+      type: string
+      enum: [pending, active, completed]

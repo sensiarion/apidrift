@@ -1,0 +1,2969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenAPI Diff Report</title>
+    <style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: #fafafa;
+        color: #3b4151;
+        line-height: 1.5;
+        font-size: 14px;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 3px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .badge:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .badge.active {
+        box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor;
+    }
+
+    .badge.breaking {
+        background-color: #f93e3e;
+        color: white;
+    }
+
+    .badge.warning {
+        background-color: #f7981c;
+        color: white;
+    }
+
+    .badge.change {
+        background-color: #49cc90;
+        color: white;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .toggle-icon {
+        transition: transform 0.2s;
+        font-weight: bold;
+        color: #6b7280;
+        margin-right: 8px;
+        font-size: 0.75rem;
+    }
+
+    .no-changes {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6b7280;
+    }
+
+    .no-changes h2 {
+        font-size: 1.25rem;
+        margin-bottom: 8px;
+    }
+
+    /* Blink animation */
+    @keyframes blink-highlight {
+        0%, 100% {
+            background-color: transparent;
+        }
+        25%, 75% {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        50% {
+            background-color: rgba(59, 130, 246, 0.2);
+        }
+    }
+
+    .blink-animation {
+        animation: blink-highlight 1.5s ease-in-out;
+    }
+</style>
+
+
+</head>
+<body>
+    <style>
+    header {
+        background: linear-gradient(90deg, #49cc90 0%, #3ab077 100%);
+        color: white;
+        padding: 20px 0;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+        font-weight: 400;
+        margin-bottom: 4px;
+    }
+
+    header p {
+        font-size: 0.875rem;
+        opacity: 0.95;
+    }
+</style>
+
+<header>
+    <div class="container">
+        <h1>OpenAPI Diff Report</h1>
+        <p>Detailed comparison of routes and schemas between versions</p>
+    </div>
+</header>
+
+
+
+    <div class="container">
+        <style>
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-left: 3px solid #49cc90;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    }
+
+    .stat-card.active {
+        border-left-width: 5px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .stat-card h3 {
+        font-size: 0.75rem;
+        color: #6b7280;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .stat-card .number {
+        font-size: 1.5rem;
+        font-weight: 400;
+        color: #3b4151;
+    }
+
+    .stat-card.breaking {
+        border-left-color: #f93e3e;
+    }
+
+    .stat-card.breaking .number {
+        color: #f93e3e;
+    }
+
+    .stat-card.warning {
+        border-left-color: #f7981c;
+    }
+
+    .stat-card.warning .number {
+        color: #f7981c;
+    }
+
+    .stat-card.change {
+        border-left-color: #49cc90;
+    }
+
+    .stat-card.change .number {
+        color: #49cc90;
+    }
+</style>
+
+<div class="stats">
+    <div class="stat-card" data-filter="all" onclick="filterByChangeLevel('all')">
+        <h3>Total Changes</h3>
+        <div class="number">47</div>
+    </div>
+    <div class="stat-card breaking" data-filter="breaking" onclick="filterByChangeLevel('breaking')">
+        <h3>Breaking Changes</h3>
+        <div class="number">19</div>
+    </div>
+    <div class="stat-card warning" data-filter="warning" onclick="filterByChangeLevel('warning')">
+        <h3>Warnings</h3>
+        <div class="number">7</div>
+    </div>
+    <div class="stat-card change" data-filter="change" onclick="filterByChangeLevel('change')">
+        <h3>Non-Breaking</h3>
+        <div class="number">21</div>
+    </div>
+</div>
+
+
+        <style>
+    .help-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+
+    .help-header {
+        padding: 12px 16px;
+        background: #f1f5f9;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: #475569;
+    }
+
+    .help-header:hover {
+        background: #e2e8f0;
+    }
+
+    .help-body {
+        padding: 16px;
+        display: none;
+        background: white;
+    }
+
+    .help-section.expanded .help-body {
+        display: block;
+    }
+
+    .help-legend {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+    }
+
+    .legend-item .legend-emoji {
+        font-size: 1rem;
+    }
+
+    .legend-item .legend-text {
+        color: #64748b;
+    }
+</style>
+
+<div class="help-section">
+    <div class="help-header">
+        <span>📖 Legend & Help</span>
+        <span class="toggle-icon">▶</span>
+    </div>
+    <div class="help-body">
+        <h3 style="margin-bottom: 12px; font-size: 1rem; color: #1f2937;">Change Status Emojis</h3>
+        <div class="help-legend">
+            <div class="legend-item">
+                <span class="legend-emoji">➕</span>
+                <span class="legend-text">Added</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">➖</span>
+                <span class="legend-text">Removed</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">🔄</span>
+                <span class="legend-text">Changed</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">⚠️</span>
+                <span class="legend-text">Warning</span>
+            </div>
+        </div>
+        <h3 style="margin: 16px 0 12px 0; font-size: 1rem; color: #1f2937;">Property Type Emojis</h3>
+        <div class="help-legend">
+            <div class="legend-item">
+                <span class="legend-emoji">🔧</span>
+                <span class="legend-text">Property</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">📝</span>
+                <span class="legend-text">Type</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">📄</span>
+                <span class="legend-text">Description</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">📋</span>
+                <span class="legend-text">Enum</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">🏷️</span>
+                <span class="legend-text">Format</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">❓</span>
+                <span class="legend-text">Nullable</span>
+            </div>
+        </div>
+        <h3 style="margin: 16px 0 12px 0; font-size: 1rem; color: #1f2937;">Schema Usage Emojis</h3>
+        <div class="help-legend">
+            <div class="legend-item">
+                <span class="legend-emoji">⬇️</span>
+                <span class="legend-text">Input (Request)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-emoji">⬆️</span>
+                <span class="legend-text">Output (Response)</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Click on help header to expand/collapse
+    document.querySelectorAll('.help-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            const section = this.closest('.help-section');
+            section.classList.toggle('expanded');
+        });
+    });
+</script>
+
+
+        <style>
+    .grouped-section {
+        margin-top: 24px;
+        margin-bottom: 32px;
+    }
+
+    .grouped-changes {
+        margin-top: 8px;
+    }
+
+    .grouped-card {
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+        transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .grouped-card.filtered-out {
+        display: none;
+    }
+
+    .grouped-header {
+        padding: 14px 16px;
+        border-left: 3px solid #49cc90;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .grouped-header:hover {
+        background-color: #f5f7fa;
+    }
+
+    .grouped-header.breaking {
+        border-left-color: #f93e3e;
+    }
+
+    .grouped-header.warning {
+        border-left-color: #f7981c;
+    }
+
+    .grouped-header.change {
+        border-left-color: #49cc90;
+    }
+
+    .grouped-change-description {
+        font-weight: 500;
+        color: #1f2937;
+        font-size: 0.875rem;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .grouped-change-description .change-emoji {
+        font-size: 1.1rem;
+    }
+
+    .count-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background-color: #e2e8f0;
+        color: #475569;
+        margin-left: 8px;
+    }
+
+    .count-badge.route-badge {
+        background-color: #dbeafe;
+        color: #1e40af;
+    }
+
+    .grouped-body {
+        padding: 12px 16px 16px 16px;
+        display: none;
+    }
+
+    .grouped-card.expanded .grouped-body {
+        display: block;
+    }
+
+    .grouped-card.expanded .toggle-icon {
+        transform: rotate(90deg);
+    }
+
+    .schema-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 12px;
+        margin-bottom: 8px;
+    }
+
+    .schema-chip {
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #334155;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    }
+
+    .schema-chip:hover {
+        background: #e2e8f0;
+        border-color: #94a3b8;
+    }
+
+    .schema-chip-link {
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .schema-chip-active {
+        border-color: #3b82f6;
+        background: #eff6ff;
+        color: #1e40af;
+    }
+
+    .schema-chip-active:hover {
+        background: #dbeafe;
+        border-color: #2563eb;
+        transform: translateY(-1px);
+    }
+
+    .route-chip {
+        background: #fef3c7;
+        border-color: #f59e0b;
+        color: #92400e;
+    }
+
+    .route-chip:hover {
+        background: #fde68a;
+        border-color: #d97706;
+    }
+
+    .usage-emoji {
+        margin-right: 4px;
+        font-size: 0.8rem;
+    }
+
+    .schema-chip-no-changes {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #94a3b8;
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .difference {
+        margin-bottom: 6px;
+        padding: 8px 10px;
+        background-color: #f9fafb;
+        border-radius: 4px;
+        border-left: 2px solid #49cc90;
+    }
+
+    .difference.breaking {
+        border-left-color: #f93e3e;
+        background-color: #fef2f2;
+    }
+
+    .difference.warning {
+        border-left-color: #f7981c;
+        background-color: #fffbeb;
+    }
+
+    .difference.change {
+        border-left-color: #49cc90;
+        background-color: #f0fdf4;
+    }
+
+    .difference-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+
+    .difference-description {
+        font-weight: 500;
+        color: #1f2937;
+        font-size: 0.8rem;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    }
+
+    .property-cards {
+        margin-left: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+    }
+
+    .property-card {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: #475569;
+    }
+
+    .property-card .property-emoji {
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
+
+    .property-card .property-type {
+        font-weight: 600;
+        color: #64748b;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .property-card .property-content {
+        color: #1e293b;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+        font-size: 0.7rem;
+    }
+</style>
+
+
+<div class="grouped-section">
+    <h2 class="section-title">📊 Brief Changes</h2>
+    <div class="grouped-changes">
+        
+        <div class="grouped-card" data-change-level="breaking">
+            <div class="grouped-header breaking">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    
+                    <span>Enum values removed: [&quot;pending&quot;]</span>
+                    <span class="count-badge">2 schemas</span>
+                    
+                    <span class="count-badge route-badge">2 routes</span>
+                    
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    
+                    
+                    <a href="#schema-User" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">User</a>
+                    
+                    
+                    
+                    <a href="#schema-UserStatus" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">UserStatus</a>
+                    
+                    
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-GET-&#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>GET &#x2F;users&#x2F;{id}
+                    </a>
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>POST &#x2F;users
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="breaking">
+            <div class="grouped-header breaking">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    
+                    <span>Required property &#x27;username&#x27; was added</span>
+                    <span class="count-badge">2 schemas</span>
+                    
+                    <span class="count-badge route-badge">2 routes</span>
+                    
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                
+                <div class="property-cards">
+                    
+                    <div class="property-card">
+                        <span class="property-emoji">🔧</span>
+                        <span class="property-type">Required</span>
+                        <span class="property-content">Required property &#x27;username&#x27; was added</span>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    
+                    
+                    <a href="#schema-CreateUserRequest" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">CreateUserRequest</a>
+                    
+                    
+                    
+                    <a href="#schema-User" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">User</a>
+                    
+                    
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-GET-&#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>GET &#x2F;users&#x2F;{id}
+                    </a>
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Input schema">
+                        <span class="usage-emoji">⬇️</span>POST &#x2F;users
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="warning">
+            <div class="grouped-header warning">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    
+                    <span>Format changed from &#x27;email&#x27; to &#x27;uri&#x27;</span>
+                    <span class="count-badge">2 schemas</span>
+                    
+                    <span class="count-badge route-badge">2 routes</span>
+                    
+                    
+                </div>
+                <span class="badge warning" onclick="event.stopPropagation(); filterByChangeLevel('warning')">Warning</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    
+                    
+                    <a href="#schema-CreateUserRequest" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">CreateUserRequest</a>
+                    
+                    
+                    
+                    <a href="#schema-User" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">User</a>
+                    
+                    
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-GET-&#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>GET &#x2F;users&#x2F;{id}
+                    </a>
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Input schema">
+                        <span class="usage-emoji">⬇️</span>POST &#x2F;users
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    
+                    <span>Property &#x27;username&#x27; was added</span>
+                    <span class="count-badge">2 schemas</span>
+                    
+                    <span class="count-badge route-badge">2 routes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    
+                    
+                    <a href="#schema-CreateUserRequest" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">CreateUserRequest</a>
+                    
+                    
+                    
+                    <a href="#schema-User" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">User</a>
+                    
+                    
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-GET-&#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>GET &#x2F;users&#x2F;{id}
+                    </a>
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Input schema">
+                        <span class="usage-emoji">⬇️</span>POST &#x2F;users
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    
+                    <span>Enum values added: [&quot;cancelled&quot;]</span>
+                    <span class="count-badge">2 schemas</span>
+                    
+                    <span class="count-badge route-badge">2 routes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    
+                    
+                    <a href="#schema-User" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">User</a>
+                    
+                    
+                    
+                    <a href="#schema-UserStatus" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">UserStatus</a>
+                    
+                    
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-GET-&#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>GET &#x2F;users&#x2F;{id}
+                    </a>
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>POST &#x2F;users
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="breaking">
+            <div class="grouped-header breaking">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    <span>CreateUserRequest</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    <span class="count-badge route-badge">1 routes</span>
+                    
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">⚠️</span>
+                                Required property &#x27;name&#x27; was removed
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-CreateUserRequest" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">CreateUserRequest</a>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Input schema">
+                        <span class="usage-emoji">⬇️</span>POST &#x2F;users
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="breaking">
+            <div class="grouped-header breaking">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    <span>User</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    <span class="count-badge route-badge">2 routes</span>
+                    
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">🔧</span>
+                                Property &#x27;name&#x27; was removed
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-User" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">User</a>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-POST-&#x2F;users" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>POST &#x2F;users
+                    </a>
+                    
+                    <a href="#route-GET-&#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>GET &#x2F;users&#x2F;{id}
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    <span>CreateOrderRequest</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    <span class="count-badge route-badge">1 routes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Schema &#x27;CreateOrderRequest&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-CreateOrderRequest" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">CreateOrderRequest</a>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-POST-&#x2F;orders" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Input schema">
+                        <span class="usage-emoji">⬇️</span>POST &#x2F;orders
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    <span>Product</span>
+                    <span class="count-badge">3 changes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Enum values added: [&quot;books&quot;, &quot;toys&quot;]
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">🔧</span>
+                                Property &#x27;tags&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">⚠️</span>
+                                Required property &#x27;price&#x27; was removed
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-Product" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">Product</a>
+                    
+                </div>
+                
+                
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    <span>OrderStatus</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Schema &#x27;OrderStatus&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-OrderStatus" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">OrderStatus</a>
+                    
+                </div>
+                
+                
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🔧</span>
+                    <span>Order</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    <span class="count-badge route-badge">1 routes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Schema &#x27;Order&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-Order" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">Order</a>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    <a href="#route-POST-&#x2F;orders" class="schema-chip schema-chip-link route-chip" onclick="expandAndBlink(this)" title="Output schema">
+                        <span class="usage-emoji">⬆️</span>POST &#x2F;orders
+                    </a>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="breaking">
+            <div class="grouped-header breaking">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🛣️</span>
+                    <span>GET &#x2F;users&#x2F;{id}</span>
+                    <span class="count-badge">3 changes</span>
+                    
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference warning">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➖</span>
+                                Response Status Removed: 404
+                            </span>
+                            <span class="badge warning">Warning</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">⚠️</span>
+                                Required Parameter Added: includeDeleted (in: Query)
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Response Status Added: 410
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-GET &#x2F;users&#x2F;{id}" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">GET &#x2F;users&#x2F;{id}</a>
+                    
+                </div>
+                
+                
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="breaking">
+            <div class="grouped-header breaking">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🛣️</span>
+                    <span>GET &#x2F;products</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">⚠️</span>
+                                Parameter Removed: limit (in: Query)
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-GET &#x2F;products" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">GET &#x2F;products</a>
+                    
+                </div>
+                
+                
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="warning">
+            <div class="grouped-header warning">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🛣️</span>
+                    <span>POST &#x2F;users</span>
+                    <span class="count-badge">2 changes</span>
+                    
+                    
+                </div>
+                <span class="badge warning" onclick="event.stopPropagation(); filterByChangeLevel('warning')">Warning</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Response Status Added: 200
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference warning">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➖</span>
+                                Response Status Removed: 201
+                            </span>
+                            <span class="badge warning">Warning</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-POST &#x2F;users" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">POST &#x2F;users</a>
+                    
+                </div>
+                
+                
+                
+            </div>
+        </div>
+        
+        <div class="grouped-card" data-change-level="change">
+            <div class="grouped-header change">
+                <div class="grouped-change-description">
+                    <span class="toggle-icon">▶</span>
+                    
+                    
+                    <span class="change-emoji">🛣️</span>
+                    <span>POST &#x2F;orders</span>
+                    <span class="count-badge">1 changes</span>
+                    
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="grouped-body">
+                
+                
+                <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                <span style="margin-right: 6px;">➕</span>
+                                Route Added: POST &#x2F;orders
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                <div class="schema-chips">
+                    
+                    
+                    <a href="#schema-POST &#x2F;orders" class="schema-chip schema-chip-link" onclick="expandAndBlink(this)">POST &#x2F;orders</a>
+                    
+                </div>
+                
+                
+                
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+
+<script>
+    // Click on grouped header to expand/collapse
+    document.querySelectorAll('.grouped-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't toggle if clicking on a badge
+            if (e.target.classList.contains('badge')) return;
+            const card = this.closest('.grouped-card');
+            card.classList.toggle('expanded');
+        });
+    });
+</script>
+
+
+        <style>
+    .routes-section {
+        margin-bottom: 32px;
+    }
+
+    .schema-card {
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+        transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .schema-card.filtered-out {
+        display: none;
+    }
+
+    .schema-header {
+        padding: 12px 16px;
+        border-left: 3px solid #49cc90;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .schema-header:hover {
+        background-color: #f5f7fa;
+    }
+
+    .schema-header.breaking {
+        border-left-color: #f93e3e;
+    }
+
+    .schema-header.warning {
+        border-left-color: #f7981c;
+    }
+
+    .schema-header.change {
+        border-left-color: #49cc90;
+    }
+
+    .schema-name {
+        font-size: 1rem;
+        font-weight: 500;
+        color: #3b4151;
+    }
+
+    .schema-body {
+        padding: 8px 16px 12px 16px;
+        display: none;
+    }
+
+    .schema-card.expanded .schema-body {
+        display: block;
+    }
+
+    .schema-card.expanded .toggle-icon {
+        transform: rotate(90deg);
+    }
+</style>
+
+
+<div class="routes-section">
+    <h2 class="section-title">🛣️ Route Changes</h2>
+    <div class="routes">
+        
+        <div class="schema-card" id="route-GET-&#x2F;users&#x2F;{id}" data-change-level="breaking">
+            <div class="schema-header breaking">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">GET &#x2F;users&#x2F;{id}</span>
+                    
+                    <span style="margin-left: 8px; font-size: 0.7rem; color: #64748b; font-weight: 500;">
+                        📤
+                    </span>
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="schema-body">
+                
+                <div class="difference breaking">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">⚠️</span>
+                            Required Parameter Added: includeDeleted (in: Query)
+                        </span>
+                        <span class="badge breaking">Breaking</span>
+                    </div>
+                    
+                </div>
+                
+                <div class="difference change">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">➕</span>
+                            Response Status Added: 410
+                        </span>
+                        <span class="badge change">Change</span>
+                    </div>
+                    
+                </div>
+                
+                <div class="difference warning">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">➖</span>
+                            Response Status Removed: 404
+                        </span>
+                        <span class="badge warning">Warning</span>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                
+                
+                
+                    
+                        
+                    
+                
+                
+                
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; font-weight: 600;">Related Schemas</h4>
+                    
+                    
+                    
+                    
+                    <div>
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📤 Response:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            
+                            
+                            <a href="#schema-User" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                User
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">(200)</span>
+                            </a>
+                            
+                            
+                        </div>
+                    </div>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="schema-card" id="route-POST-&#x2F;orders" data-change-level="change">
+            <div class="schema-header change">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">POST &#x2F;orders</span>
+                    
+                    <span style="margin-left: 8px; font-size: 0.7rem; color: #64748b; font-weight: 500;">
+                        📥📤
+                    </span>
+                    
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="schema-body">
+                
+                <div class="difference change">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">➕</span>
+                            Route Added: POST &#x2F;orders
+                        </span>
+                        <span class="badge change">Change</span>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                
+                
+                    
+                        
+                    
+                
+                
+                    
+                        
+                    
+                
+                
+                
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; font-weight: 600;">Related Schemas</h4>
+                    
+                    
+                    <div style="margin-bottom: 8px;">
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📥 Request:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            
+                            
+                            <a href="#schema-CreateOrderRequest" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                CreateOrderRequest
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">(application&#x2F;json)</span>
+                            </a>
+                            
+                            
+                        </div>
+                    </div>
+                    
+                    
+                    
+                    <div>
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📤 Response:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            
+                            
+                            <a href="#schema-Order" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                Order
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">(201)</span>
+                            </a>
+                            
+                            
+                        </div>
+                    </div>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+        <div class="schema-card" id="route-GET-&#x2F;products" data-change-level="breaking">
+            <div class="schema-header breaking">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">GET &#x2F;products</span>
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="schema-body">
+                
+                <div class="difference breaking">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">⚠️</span>
+                            Parameter Removed: limit (in: Query)
+                        </span>
+                        <span class="badge breaking">Breaking</span>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                
+                
+                
+                
+                
+            </div>
+        </div>
+        
+        <div class="schema-card" id="route-POST-&#x2F;users" data-change-level="breaking">
+            <div class="schema-header breaking">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">POST &#x2F;users</span>
+                    
+                    <span style="margin-left: 8px; font-size: 0.7rem; color: #64748b; font-weight: 500;">
+                        📥📤
+                    </span>
+                    
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="schema-body">
+                
+                <div class="difference change">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">➕</span>
+                            Response Status Added: 200
+                        </span>
+                        <span class="badge change">Change</span>
+                    </div>
+                    
+                </div>
+                
+                <div class="difference warning">
+                    <div class="difference-header">
+                        <span class="difference-description">
+                            <span style="margin-right: 6px;">➖</span>
+                            Response Status Removed: 201
+                        </span>
+                        <span class="badge warning">Warning</span>
+                    </div>
+                    
+                </div>
+                
+                
+                
+                
+                
+                    
+                        
+                    
+                
+                
+                    
+                        
+                    
+                
+                
+                
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; font-weight: 600;">Related Schemas</h4>
+                    
+                    
+                    <div style="margin-bottom: 8px;">
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📥 Request:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            
+                            
+                            <a href="#schema-CreateUserRequest" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                CreateUserRequest
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">(application&#x2F;json)</span>
+                            </a>
+                            
+                            
+                        </div>
+                    </div>
+                    
+                    
+                    
+                    <div>
+                        <span style="font-size: 0.7rem; color: #475569; font-weight: 600;">📤 Response:</span>
+                        <div class="schema-chips" style="margin-top: 4px;">
+                            
+                            
+                            <a href="#schema-User" class="schema-chip schema-chip-active" style="text-decoration: none; cursor: pointer; transition: all 0.2s;" onclick="expandAndBlink(this)" title="Click to view schema changes">
+                                User
+                                <span style="font-size: 0.65rem; color: #94a3b8; margin-left: 4px;">(200)</span>
+                            </a>
+                            
+                            
+                        </div>
+                    </div>
+                    
+                </div>
+                
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+
+<script>
+    // Click on schema header to expand/collapse (for route cards in this section)
+    document.querySelectorAll('.routes .schema-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't toggle if clicking on a badge
+            if (e.target.classList.contains('badge')) return;
+            const card = this.closest('.schema-card');
+            card.classList.toggle('expanded');
+        });
+    });
+</script>
+
+
+        
+    <h2 class="section-title">📋 Schema Changes</h2>
+    <div class="schemas">
+        
+        <div class="schema-card" id="schema-Order" data-change-level="change">
+            <div class="schema-header change">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">Order</span>
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Schema &#x27;Order&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">id</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">productId</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">userId</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">status</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">
+                            Enum: <span style="font-family: 'SF Mono', Monaco, monospace;">created, paid, shipped</span>
+                        </div>
+                        
+                        
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="schema-card" id="schema-CreateOrderRequest" data-change-level="change">
+            <div class="schema-header change">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">CreateOrderRequest</span>
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Schema &#x27;CreateOrderRequest&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">productId</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">userId</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">quantity</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="schema-card" id="schema-UserStatus" data-change-level="breaking">
+            <div class="schema-header breaking">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">UserStatus</span>
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Enum values added: [&quot;cancelled&quot;]
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Enum values removed: [&quot;pending&quot;]
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="schema-card" id="schema-OrderStatus" data-change-level="change">
+            <div class="schema-header change">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">OrderStatus</span>
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Schema &#x27;OrderStatus&#x27; was added
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="schema-card" id="schema-User" data-change-level="breaking">
+            <div class="schema-header breaking">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">User</span>
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Required property &#x27;username&#x27; was added
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">email</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">
+                            Format: <span style="font-family: 'SF Mono', Monaco, monospace;">uri</span>
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Format changed from &#x27;email&#x27; to &#x27;uri&#x27;</span>
+                                    <span style="background: #f7981c; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Warning</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">id</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">
+                            Format: <span style="font-family: 'SF Mono', Monaco, monospace;">int64</span>
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">username</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px; font-style: italic;">
+                            Public username (now required)
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Property &#x27;username&#x27; was added</span>
+                                    <span style="background: #49cc90; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Change</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">status</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">
+                            Enum: <span style="font-family: 'SF Mono', Monaco, monospace;">active, completed, cancelled</span>
+                        </div>
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Enum values added: [&quot;cancelled&quot;]</span>
+                                    <span style="background: #49cc90; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Change</span>
+                                </div>
+                            </div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Enum values removed: [&quot;pending&quot;]</span>
+                                    <span style="background: #f93e3e; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Breaking</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="schema-card" id="schema-Product" data-change-level="change">
+            <div class="schema-header change">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">Product</span>
+                </div>
+                <span class="badge change" onclick="event.stopPropagation(); filterByChangeLevel('change')">Change</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference change">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Required property &#x27;price&#x27; was removed
+                            </span>
+                            <span class="badge change">Change</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">id</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Integer)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">name</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">category</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 4px;">
+                            Enum: <span style="font-family: 'SF Mono', Monaco, monospace;">electronics, clothing, food, books, toys</span>
+                        </div>
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Enum values added: [&quot;books&quot;, &quot;toys&quot;]</span>
+                                    <span style="background: #49cc90; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Change</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    
+                    
+                    
+                    
+                        
+                        
+                    
+                    
+                    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">price</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Number)</span>
+                            
+                        </div>
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">
+                            Format: <span style="font-family: 'SF Mono', Monaco, monospace;">double</span>
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                    </div>
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">tags</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(Array)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Property &#x27;tags&#x27; was added</span>
+                                    <span style="background: #49cc90; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Change</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="schema-card" id="schema-CreateUserRequest" data-change-level="breaking">
+            <div class="schema-header breaking">
+                <div>
+                    <span class="toggle-icon">▶</span>
+                    <span class="schema-name">CreateUserRequest</span>
+                </div>
+                <span class="badge breaking" onclick="event.stopPropagation(); filterByChangeLevel('breaking')">Breaking</span>
+            </div>
+            <div class="schema-body">
+                
+                
+                
+                <div style="margin-bottom: 12px;">
+                    <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 6px; font-weight: 600;">Schema-Level Changes</h4>
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Required property &#x27;username&#x27; was added
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                    <div class="difference breaking">
+                        <div class="difference-header">
+                            <span class="difference-description">
+                                Required property &#x27;name&#x27; was removed
+                            </span>
+                            <span class="badge breaking">Breaking</span>
+                        </div>
+                    </div>
+                    
+                </div>
+                
+                
+                <h4 style="font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 12px; font-weight: 600;">Properties</h4>
+                <div style="display: grid; gap: 8px;">
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">email</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        <div style="color: #6b7280; font-size: 0.75rem; margin-top: 2px;">
+                            Format: <span style="font-family: 'SF Mono', Monaco, monospace;">uri</span>
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Format changed from &#x27;email&#x27; to &#x27;uri&#x27;</span>
+                                    <span style="background: #f7981c; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Warning</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                    
+                    
+                        
+                            
+                                
+                            
+                        
+                    
+                    
+                    
+                        
+                            
+                            
+                        
+                    
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <span style="font-weight: 600; color: #1f2937; font-family: 'SF Mono', Monaco, monospace; font-size: 0.875rem;">username</span>
+                                
+                                <span style="background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; margin-left: 6px;">REQUIRED</span>
+                                
+                                
+                            </div>
+                            
+                            <span style="color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace;">Single(String)</span>
+                            
+                        </div>
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #bbf7d0;">
+                            <div style="font-size: 0.7rem; font-weight: 600; color: #16a34a; margin-bottom: 4px;">⚠️ CHANGES:</div>
+                            
+                            <div style="background: white; border: 1px solid #bbf7d0; border-radius: 3px; padding: 6px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 0.75rem; color: #1f2937;">Property &#x27;username&#x27; was added</span>
+                                    <span style="background: #49cc90; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: 600;">Change</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+
+<script>
+    // Click on schema header to expand/collapse (for schema cards in this section)
+    document.querySelectorAll('.schemas .schema-header').forEach(header => {
+        header.addEventListener('click', function(e) {
+            // Don't toggle if clicking on a badge
+            if (e.target.classList.contains('badge')) return;
+            const card = this.closest('.schema-card');
+            card.classList.toggle('expanded');
+        });
+    });
+</script>
+
+
+    </div>
+
+    <script>
+    // Global variable to track current filter
+    let currentFilter = 'all';
+
+    // Function to filter changes by level
+    function filterByChangeLevel(level) {
+        // Toggle filter: if clicking on the same filter, reset to 'all'
+        if (currentFilter === level) {
+            level = 'all';
+        }
+        currentFilter = level;
+
+        // Update stat cards active state
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.classList.remove('active');
+        });
+        
+        const activeStatCard = document.querySelector(`.stat-card[data-filter="${level}"]`);
+        if (activeStatCard) {
+            activeStatCard.classList.add('active');
+        }
+
+        // Filter all cards
+        const allCards = document.querySelectorAll('.schema-card, .grouped-card');
+        allCards.forEach(card => {
+            const cardLevel = card.getAttribute('data-change-level');
+            if (level === 'all' || cardLevel === level) {
+                card.classList.remove('filtered-out');
+            } else {
+                card.classList.add('filtered-out');
+            }
+        });
+
+        // Update badge active states
+        document.querySelectorAll('.badge').forEach(badge => {
+            badge.classList.remove('active');
+        });
+        
+        if (level !== 'all') {
+            document.querySelectorAll(`.badge.${level}`).forEach(badge => {
+                badge.classList.add('active');
+            });
+        }
+
+        // Show/hide sections if all items are filtered out
+        updateSectionVisibility();
+    }
+
+    // Function to update section visibility
+    function updateSectionVisibility() {
+        const sections = [
+            { selector: '.grouped-section', cards: '.grouped-card' },
+            { selector: '.routes-section', cards: '.routes .schema-card' },
+            { selector: '.schemas', cards: '.schemas .schema-card' }
+        ];
+
+        sections.forEach(({ selector, cards }) => {
+            const section = document.querySelector(selector);
+            if (section) {
+                const visibleCards = section.querySelectorAll(`${cards}:not(.filtered-out)`);
+                // Don't hide sections, just let them be empty
+            }
+        });
+    }
+
+    // Function to expand target and add blink animation
+    function expandAndBlink(element) {
+        // Prevent default anchor behavior temporarily
+        event.preventDefault();
+        
+        // Get the target ID from href
+        const href = element.getAttribute('href');
+        if (!href) return;
+        
+        const targetId = href.substring(1); // Remove the # 
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement) {
+            // Check if the element is filtered out
+            if (targetElement.classList.contains('filtered-out')) {
+                // Reset filter to show all
+                filterByChangeLevel('all');
+            }
+
+            // Expand the card if it's not already expanded
+            if (!targetElement.classList.contains('expanded')) {
+                targetElement.classList.add('expanded');
+            }
+            
+            // Scroll to the element
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Add blink animation
+            targetElement.classList.add('blink-animation');
+            
+            // Remove the animation class after it completes
+            setTimeout(() => {
+                targetElement.classList.remove('blink-animation');
+            }, 1500);
+        }
+        
+        return false;
+    }
+
+    // Handle hash navigation on page load
+    window.addEventListener('load', function() {
+        if (window.location.hash) {
+            const targetId = window.location.hash.substring(1);
+            const targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                setTimeout(() => {
+                    if (!targetElement.classList.contains('expanded')) {
+                        targetElement.classList.add('expanded');
+                    }
+                    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    targetElement.classList.add('blink-animation');
+                    
+                    setTimeout(() => {
+                        targetElement.classList.remove('blink-animation');
+                    }, 1500);
+                }, 100);
+            }
+        }
+    });
+</script>
+
+
+</body>
+</html>

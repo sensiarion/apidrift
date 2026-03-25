@@ -65,16 +65,29 @@ sudo mv target/release/apidrift /usr/local/bin/
 ## Usage
 
 ```bash
-apidrift <base_openapi.json> <current_openapi.json> [output.html]
+apidrift <base_openapi.{json,yaml}> <current_openapi.{json,yaml}> -o report.html
 ```
 
 The tool generates a comprehensive HTML report showing:
+
 - Schema changes grouped by model
 - Route changes
 - Breaking changes highlighted
 - Added/removed/modified endpoints
 
 Both JSON and YAML OpenAPI specs are supported.
+
+### Try it in 30 seconds (sample specs + hosted report)
+
+Generate the sample report locally:
+
+```bash
+./scripts/generate_sample_report.sh
+open docs/reports/sample_report.html
+```
+
+Or view the sample report rendered from this
+repository: [click to open example report](https://html-preview.github.io/?url=https://github.com/sensiarion/apidrift/blob/main/docs/reports/sample_report.html)
 
 ## For Developers
 
@@ -94,25 +107,25 @@ This project uses [cargo-dist](https://github.com/axodotdev/cargo-dist) for auto
    git push --tags
    ```
 4. The release workflow will automatically:
-   - Run all tests (build fails if tests fail)
-   - Build binaries for all platforms (Linux x64/ARM64, macOS x64/ARM64, Windows x64)
-   - Create installers (shell script for Unix, PowerShell for Windows)
-   - Create a GitHub release with all artifacts
+    - Run all tests (build fails if tests fail)
+    - Build binaries for all platforms (Linux x64/ARM64, macOS x64/ARM64, Windows x64)
+    - Create installers (shell script for Unix, PowerShell for Windows)
+    - Create a GitHub release with all artifacts
 
 See [RELEASE.md](RELEASE.md) for detailed release instructions.
 
 ### CI/CD Workflows
 
 - **CI Workflow** (`.github/workflows/ci.yml`): Runs on every PR and merge to main
-  - Tests formatting with `cargo fmt`
-  - Runs linting with `cargo clippy`
-  - Builds the project
-  - Runs all tests
+    - Tests formatting with `cargo fmt`
+    - Runs linting with `cargo clippy`
+    - Builds the project
+    - Runs all tests
 
 - **Release Workflow** (`.github/workflows/release.yml`): Runs when a version tag is pushed
-  - First runs all tests (must pass before building)
-  - Builds release artifacts for all platforms using cargo-dist
-  - Creates GitHub release with all artifacts and installers
+    - First runs all tests (must pass before building)
+    - Builds release artifacts for all platforms using cargo-dist
+    - Creates GitHub release with all artifacts and installers
 
 ## Why i want yet another one tool
 
@@ -159,8 +172,6 @@ I want to create diff tool, that:
 - track changes by level, as oasdiff do (track breaking changes)
 - accepts both yaml and json format
 
-
-
 ## TODO
 
 - [ ] accept http url as source
@@ -174,14 +185,14 @@ I want to create diff tool, that:
 - [ ] deprecation tracking
 - [ ] headers change tracking
 - [x] add filter panel by level (critical, change, etc) to display only certain changes on report
-  - [ ] also add CLI param to filter rules on generation
+    - [ ] also add CLI param to filter rules on generation
 - [ ] track addition of required input param as Critical
 - [ ] fix display types (now it shows like "Some()" and rest rust impl info)
 - [ ] refactor display of add/remove params in schema. Color - for change level and +/- emoji for addition/removal
-  - [ ] this also leads to refactoring of display removal properties. It should be included in rendering scheme
+    - [ ] this also leads to refactoring of display removal properties. It should be included in rendering scheme
 
 - [ ] parallel comparison run
-  - [ ] will require to build dep tree or locks, to prevent multiple parsing on recursive
+    - [ ] will require to build dep tree or locks, to prevent multiple parsing on recursive
 
 - [ ] auth change/server params
 - [ ] version change tracking
@@ -190,11 +201,12 @@ I want to create diff tool, that:
 ### Future features
 
 - [ ] tracking of non schema body changes in routes.
-  - This project is mainly suited for auto generated openapi specs with schemas
+    - This project is mainly suited for auto generated openapi specs with schemas
 
 - [ ] others export formats (markdown, json)
-  - markdown is mostly to pass those changes to llm
+    - markdown is mostly to pass those changes to llm
 
-- [ ] filter affecting routes by tag (produce changes only for routes (and schemas related to those routes), that marked with specified tag)
+- [ ] filter affecting routes by tag (produce changes only for routes (and schemas related to those routes), that marked
+  with specified tag)
 
 ## Inspired
