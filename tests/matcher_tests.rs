@@ -261,8 +261,8 @@ fn test_allof_ref_type_not_changed() {
     }
     "##;
 
-    let base: OpenApiV3Spec = oas3::from_json(base_json.to_string()).unwrap();
-    let current: OpenApiV3Spec = oas3::from_json(current_json.to_string()).unwrap();
+    let base: OpenApiV3Spec = oas3::from_json(base_json).unwrap();
+    let current: OpenApiV3Spec = oas3::from_json(current_json).unwrap();
 
     let base_schemas = &base.components.as_ref().unwrap().schemas;
     let current_schemas = &current.components.as_ref().unwrap().schemas;

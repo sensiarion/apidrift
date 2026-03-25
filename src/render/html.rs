@@ -273,8 +273,8 @@ impl HtmlRenderer {
 
                 // Find route info for this route
                 let parts: Vec<&str> = result.name.split_whitespace().collect();
-                let method = parts.get(0).unwrap_or(&"").to_lowercase();
-                let path = parts.get(1).unwrap_or(&"");
+                let method = parts.first().copied().unwrap_or("").to_lowercase();
+                let path = parts.get(1).copied().unwrap_or("");
 
                 let route_info = route_infos
                     .iter()
@@ -427,11 +427,11 @@ impl HtmlRenderer {
             for schema_ref in &route_info.request_schemas {
                 route_schema_map
                     .entry(schema_ref.schema_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(route_name.clone());
                 route_schema_usage_map
                     .entry(schema_ref.schema_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(RouteSchemaUsage {
                         route_name: route_name.clone(),
                         usage_type: "input".to_string(),
@@ -443,11 +443,11 @@ impl HtmlRenderer {
             for schema_ref in &route_info.response_schemas {
                 route_schema_map
                     .entry(schema_ref.schema_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(route_name.clone());
                 route_schema_usage_map
                     .entry(schema_ref.schema_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(RouteSchemaUsage {
                         route_name: route_name.clone(),
                         usage_type: "output".to_string(),
@@ -484,7 +484,7 @@ impl HtmlRenderer {
                     {
                         route_schema_map
                             .entry(schema_name)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(result.name.clone());
 
                         // Skip adding this to change_map as it will be handled by the schema change
@@ -515,46 +515,50 @@ impl HtmlRenderer {
             schema_names.sort();
             schema_names.dedup();
 
-            if schema_names.len() > 1 {
-                // Multiple schemas - group by change type
-                // Collect all routes that use any of these schemas
-                let mut all_route_names = Vec::new();
-                let mut all_route_usage = Vec::new();
-                for schema_name in &schema_names {
-                    if let Some(routes) = route_schema_map.get(schema_name) {
-                        all_route_names.extend(routes.clone());
+            match schema_names.len().cmp(&1) {
+                std::cmp::Ordering::Greater => {
+                    // Multiple schemas - group by change type
+                    // Collect all routes that use any of these schemas
+                    let mut all_route_names = Vec::new();
+                    let mut all_route_usage = Vec::new();
+                    for schema_name in &schema_names {
+                        if let Some(routes) = route_schema_map.get(schema_name) {
+                            all_route_names.extend(routes.clone());
+                        }
+                        if let Some(usage) = route_schema_usage_map.get(schema_name) {
+                            all_route_usage.extend(usage.clone());
+                        }
                     }
-                    if let Some(usage) = route_schema_usage_map.get(schema_name) {
-                        all_route_usage.extend(usage.clone());
-                    }
-                }
-                all_route_names.sort();
-                all_route_names.dedup();
-                all_route_usage.sort_by(|a, b| a.route_name.cmp(&b.route_name));
-                all_route_usage.dedup_by(|a, b| a.route_name == b.route_name);
+                    all_route_names.sort();
+                    all_route_names.dedup();
+                    all_route_usage.sort_by(|a, b| a.route_name.cmp(&b.route_name));
+                    all_route_usage.dedup_by(|a, b| a.route_name == b.route_name);
 
-                multi_occurrence.push(GroupedChange {
-                    change_key: key,
-                    emoji: diff.emoji,
-                    description: diff.description,
-                    change_level: diff.change_level.clone(),
-                    change_level_class: diff.change_level_class.clone(),
-                    details: diff.details,
-                    schema_names,
-                    is_route_change: is_route,
-                    is_schema_grouped: false,
-                    changes: vec![],
-                    schema_name: None,
-                    route_names: all_route_names,
-                    route_schema_usage: all_route_usage,
-                });
-            } else if schema_names.len() == 1 {
-                // Single schema - collect all changes for this schema
-                let schema_name = schema_names[0].clone();
-                single_occurrence
-                    .entry(schema_name)
-                    .or_insert_with(Vec::new)
-                    .push((diff, is_route));
+                    multi_occurrence.push(GroupedChange {
+                        change_key: key,
+                        emoji: diff.emoji,
+                        description: diff.description,
+                        change_level: diff.change_level.clone(),
+                        change_level_class: diff.change_level_class.clone(),
+                        details: diff.details,
+                        schema_names,
+                        is_route_change: is_route,
+                        is_schema_grouped: false,
+                        changes: vec![],
+                        schema_name: None,
+                        route_names: all_route_names,
+                        route_schema_usage: all_route_usage,
+                    });
+                }
+                std::cmp::Ordering::Equal => {
+                    // Single schema - collect all changes for this schema
+                    let schema_name = schema_names[0].clone();
+                    single_occurrence
+                        .entry(schema_name)
+                        .or_default()
+                        .push((diff, is_route));
+                }
+                std::cmp::Ordering::Less => {}
             }
         }
 
@@ -650,21 +654,15 @@ impl HtmlRenderer {
         // Format: "Request schema 'SchemaName' (content-type) - original_description"
         // or "Response schema 'SchemaName' (content-type) for status 200 - original_description"
 
-        if description.starts_with("Request schema '") {
-            if let Some(start) = description.find("'") {
-                if let Some(end) = description[start + 1..].find("'") {
-                    return Some(description[start + 1..start + 1 + end].to_string());
-                }
-            }
-        } else if description.starts_with("Response schema '") {
-            if let Some(start) = description.find("'") {
-                if let Some(end) = description[start + 1..].find("'") {
-                    return Some(description[start + 1..start + 1 + end].to_string());
-                }
-            }
+        if !(description.starts_with("Request schema '")
+            || description.starts_with("Response schema '"))
+        {
+            return None;
         }
 
-        None
+        let start = description.find('\'')?;
+        let end_rel = description[start + 1..].find('\'')?;
+        Some(description[start + 1..start + 1 + end_rel].to_string())
     }
 
     fn merge_descriptions(&self, desc1: &str, desc2: &str) -> String {

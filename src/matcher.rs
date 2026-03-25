@@ -125,7 +125,7 @@ impl<'a> SchemaMatcher<'a> {
                     if let Some(prop_path) = anchor.property_path() {
                         property_violations
                             .entry(prop_path.to_string())
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(violation_info);
                     }
                 }
@@ -458,11 +458,7 @@ impl<'a> SchemaMatcher<'a> {
         })))
     }
 
-    fn effective_schema_type(
-        &self,
-        schema: &ObjectSchema,
-        spec: &Spec,
-    ) -> Option<SchemaTypeSet> {
+    fn effective_schema_type(&self, schema: &ObjectSchema, spec: &Spec) -> Option<SchemaTypeSet> {
         self.effective_schema_type_with_depth(schema, spec, 0)
     }
 
@@ -732,17 +728,15 @@ impl<'a> RouteMatcher<'a> {
         let mut response_schemas = Vec::new();
 
         // Extract request body schemas
-        if let Some(request_body) = &operation.request_body {
-            if let ObjectOrReference::Object(body) = request_body {
-                for (content_type, media_type) in &body.content {
-                    if let Some(schema) = &media_type.schema {
-                        if let Some(schema_name) = Self::extract_schema_name_static(schema) {
-                            request_schemas.push(SchemaReference {
-                                schema_name,
-                                content_type: content_type.clone(),
-                                location: SchemaLocation::RequestBody,
-                            });
-                        }
+        if let Some(ObjectOrReference::Object(body)) = &operation.request_body {
+            for (content_type, media_type) in &body.content {
+                if let Some(schema) = &media_type.schema {
+                    if let Some(schema_name) = Self::extract_schema_name_static(schema) {
+                        request_schemas.push(SchemaReference {
+                            schema_name,
+                            content_type: content_type.clone(),
+                            location: SchemaLocation::RequestBody,
+                        });
                     }
                 }
             }
@@ -825,9 +819,7 @@ impl<'a> RouteMatcher<'a> {
                 .fold(
                     std::collections::HashMap::new(),
                     |mut acc, (schema_name, violation)| {
-                        acc.entry(schema_name)
-                            .or_insert_with(Vec::new)
-                            .push(violation);
+                        acc.entry(schema_name).or_default().push(violation);
                         acc
                     },
                 );

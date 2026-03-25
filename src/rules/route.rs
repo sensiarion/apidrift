@@ -439,7 +439,7 @@ impl RouteRule for ResponseStatusAddedRule {
 
                 if let Some(current_responses) = &current_op.responses {
                     if let Some(base_responses) = &base_op.responses {
-                        for (status_code, _) in current_responses {
+                        for status_code in current_responses.keys() {
                             if !base_responses.contains_key(status_code) {
                                 rules.push(Self {
                                     path: path.to_string(),
@@ -501,7 +501,7 @@ impl RouteRule for ResponseStatusRemovedRule {
 
                 if let Some(base_responses) = &base_op.responses {
                     if let Some(current_responses) = &current_op.responses {
-                        for (status_code, _) in base_responses {
+                        for status_code in base_responses.keys() {
                             if !current_responses.contains_key(status_code) {
                                 rules.push(Self {
                                     path: path.to_string(),
@@ -591,13 +591,11 @@ impl RequestSchemaChangedRule {
     fn extract_request_schemas(op: &Operation) -> std::collections::HashMap<String, String> {
         let mut schemas = std::collections::HashMap::new();
 
-        if let Some(request_body) = &op.request_body {
-            if let oas3::spec::ObjectOrReference::Object(body) = request_body {
-                for (content_type, media_type) in &body.content {
-                    if let Some(schema) = &media_type.schema {
-                        if let Some(schema_name) = extract_schema_name(schema) {
-                            schemas.insert(content_type.clone(), schema_name);
-                        }
+        if let Some(oas3::spec::ObjectOrReference::Object(body)) = &op.request_body {
+            for (content_type, media_type) in &body.content {
+                if let Some(schema) = &media_type.schema {
+                    if let Some(schema_name) = extract_schema_name(schema) {
+                        schemas.insert(content_type.clone(), schema_name);
                     }
                 }
             }

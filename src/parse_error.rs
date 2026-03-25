@@ -82,7 +82,7 @@ fn path_to_json_pointer(path: &str) -> Option<String> {
                     current.clear();
                 }
                 let mut index = String::new();
-                while let Some(next) = chars.next() {
+                for next in chars.by_ref() {
                     if next == ']' {
                         break;
                     }

@@ -728,7 +728,7 @@ mod tests {
 
     fn create_test_schema(schema_type: Option<SchemaTypeSet>) -> ObjectSchema {
         ObjectSchema {
-            schema_type: schema_type,
+            schema_type,
             properties: BTreeMap::new(),
             required: vec![],
             description: None,
@@ -739,12 +739,11 @@ mod tests {
     }
 
     fn create_nullable_schema(nullable: bool) -> ObjectSchema {
-        let schema = if nullable {
+        if nullable {
             create_test_schema(Some(SchemaTypeSet::Single(SchemaType::Null)))
         } else {
             create_test_schema(Some(SchemaTypeSet::Single(SchemaType::Object)))
-        };
-        schema
+        }
     }
 
     #[test]
@@ -852,8 +851,8 @@ mod tests {
         assert_eq!(detected.len(), 1);
         assert_eq!(detected[0].name(), "PropertyRemoved");
         assert_eq!(detected[0].property_name, "email");
-        assert_eq!(detected[0].was_required, false);
-        assert_eq!(detected[0].totally_removed, true); // Property is completely removed
+        assert!(!detected[0].was_required);
+        assert!(detected[0].totally_removed); // Property is completely removed
         assert_eq!(detected[0].change_level(), ChangeLevel::Breaking);
     }
 
@@ -876,8 +875,8 @@ mod tests {
         assert_eq!(detected.len(), 1);
         assert_eq!(detected[0].name(), "RequiredPropertyRemoved");
         assert_eq!(detected[0].property_name, "email");
-        assert_eq!(detected[0].was_required, true);
-        assert_eq!(detected[0].totally_removed, true); // Property is completely removed
+        assert!(detected[0].was_required);
+        assert!(detected[0].totally_removed); // Property is completely removed
         assert_eq!(detected[0].change_level(), ChangeLevel::Breaking);
     }
 
@@ -967,8 +966,8 @@ mod tests {
 
         // Check that all are marked as totally_removed
         for rule in &detected {
-            assert_eq!(
-                rule.totally_removed, true,
+            assert!(
+                rule.totally_removed,
                 "All removed properties should be marked as totally_removed"
             );
             assert_eq!(
@@ -983,19 +982,19 @@ mod tests {
             .iter()
             .find(|r| r.property_name == "email")
             .unwrap();
-        assert_eq!(email_rule.was_required, true);
+        assert!(email_rule.was_required);
 
         let phone_rule = detected
             .iter()
             .find(|r| r.property_name == "phone")
             .unwrap();
-        assert_eq!(phone_rule.was_required, true);
+        assert!(phone_rule.was_required);
 
         let address_rule = detected
             .iter()
             .find(|r| r.property_name == "address")
             .unwrap();
-        assert_eq!(address_rule.was_required, false);
+        assert!(!address_rule.was_required);
     }
 
     #[test]
@@ -1046,7 +1045,7 @@ mod tests {
         assert_eq!(detected.len(), 1);
         assert_eq!(detected[0].property_path, "address");
         assert_eq!(detected[0].property_name, "nested_field");
-        assert_eq!(detected[0].totally_removed, true);
+        assert!(detected[0].totally_removed);
     }
 
     #[test]
@@ -1147,8 +1146,8 @@ mod tests {
 
         assert_eq!(detected.len(), 1);
         assert_eq!(detected[0].name(), "NullableChanged");
-        assert_eq!(detected[0].old_nullable, true);
-        assert_eq!(detected[0].new_nullable, false);
+        assert!(detected[0].old_nullable);
+        assert!(!detected[0].new_nullable);
         assert_eq!(detected[0].change_level(), ChangeLevel::Breaking);
     }
 
@@ -1161,8 +1160,8 @@ mod tests {
         let detected = NullableChangedRule::detect("User", "email", Some(&base), Some(&current));
 
         assert_eq!(detected.len(), 1);
-        assert_eq!(detected[0].old_nullable, false);
-        assert_eq!(detected[0].new_nullable, true);
+        assert!(!detected[0].old_nullable);
+        assert!(detected[0].new_nullable);
         assert_eq!(detected[0].change_level(), ChangeLevel::Warning);
     }
 
