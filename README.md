@@ -1,5 +1,24 @@
 # apidrift - OpenAPI Diff Tool
 
+* [1 Installation](#installation)
+  * [1.1 Quick Install (Linux/macOS)](#quick-install-linuxmacos)
+  * [1.2 Install Specific Version](#install-specific-version)
+  * [1.3 Manual Installation](#manual-installation)
+  * [1.4 Build from Source](#build-from-source)
+* [2 Usage](#usage)
+  * [2.1 Try it in 30 seconds (sample specs + hosted report)](#try-it-in-30-seconds-sample-specs--hosted-report)
+* [3 For Developers](#for-developers)
+  * [3.1 Creating a Release](#creating-a-release)
+  * [3.2 CI/CD Workflows](#cicd-workflows)
+* [4 Why i want yet another one tool](#why-i-want-yet-another-one-tool)
+  * [4.1 It is too much noise information](#it-is-too-much-noise-information)
+  * [4.2 Endpoint oriented diff](#endpoint-oriented-diff)
+  * [4.3 Resume](#resume)
+* [5 Target](#target)
+* [6 TODO](#todo)
+  * [6.1 Future features](#future-features)
+
+
 [![CI](https://github.com/sensiarion/apidrift/workflows/CI/badge.svg)](https://github.com/sensiarion/apidrift/actions)
 [![Release](https://github.com/sensiarion/apidrift/workflows/Release/badge.svg)](https://github.com/sensiarion/apidrift/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -88,6 +107,8 @@ open docs/reports/sample_report.html
 
 Or view the sample report rendered from this
 repository: [click to open example report](https://html-preview.github.io/?url=https://github.com/sensiarion/apidrift/blob/main/docs/reports/sample_report.html)
+
+![sample_report.png](docs/reports/sample_report_img.png)
 
 ## For Developers
 
@@ -208,5 +229,3 @@ I want to create diff tool, that:
 
 - [ ] filter affecting routes by tag (produce changes only for routes (and schemas related to those routes), that marked
   with specified tag)
-
-## Inspired
