@@ -206,3 +206,73 @@ fn test_change_level_hierarchy() {
         }
     }
 }
+
+#[test]
+fn test_allof_ref_type_not_changed() {
+    let base_json = r##"
+    {
+      "openapi": "3.0.3",
+      "info": { "title": "Test", "version": "1.0.0" },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "EventSortingFields": {
+            "type": "string",
+            "enum": ["id", "name"]
+          },
+          "EventList": {
+            "type": "object",
+            "properties": {
+              "sortBy": {
+                "type": "string",
+                "default": "id"
+              }
+            }
+          }
+        }
+      }
+    }
+    "##;
+
+    let current_json = r##"
+    {
+      "openapi": "3.0.3",
+      "info": { "title": "Test", "version": "1.0.0" },
+      "paths": {},
+      "components": {
+        "schemas": {
+          "EventSortingFields": {
+            "type": "string",
+            "enum": ["id", "name"]
+          },
+          "EventList": {
+            "type": "object",
+            "properties": {
+              "sortBy": {
+                "allOf": [
+                  { "$ref": "#/components/schemas/EventSortingFields" }
+                ],
+                "default": "id"
+              }
+            }
+          }
+        }
+      }
+    }
+    "##;
+
+    let base: OpenApiV3Spec = oas3::from_json(base_json.to_string()).unwrap();
+    let current: OpenApiV3Spec = oas3::from_json(current_json.to_string()).unwrap();
+
+    let base_schemas = &base.components.as_ref().unwrap().schemas;
+    let current_schemas = &current.components.as_ref().unwrap().schemas;
+
+    let matcher = SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
+    let results = matcher.match_schemas();
+
+    let event_list = results.iter().find(|r| r.name == "EventList");
+    assert!(
+        event_list.is_none(),
+        "Expected no changes when type is preserved through allOf ref"
+    );
+}

@@ -65,6 +65,10 @@ struct Cli {
         value_name = "FORMAT"
     )]
     pub format: OutputFormat,
+
+    /// Include description-only schema changes in the report
+    #[arg(long = "include-descriptions")]
+    include_descriptions: bool,
 }
 
 fn detect_format(path: &Path) -> Result<&'static str, String> {
@@ -251,8 +255,13 @@ fn main() {
     }
 
     // Create schema matcher and compare schemas
-    let schema_matcher =
-        matcher::SchemaMatcher::new(base_schemas, current_schemas, &base, &current);
+    let schema_matcher = matcher::SchemaMatcher::new_with_options(
+        base_schemas,
+        current_schemas,
+        &base,
+        &current,
+        cli.include_descriptions,
+    );
     let schema_results = schema_matcher.match_schemas();
     let full_schema_infos = schema_matcher.build_full_schema_infos(&schema_results);
 

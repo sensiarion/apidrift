@@ -2,7 +2,7 @@ use crate::rules::route::*;
 use crate::rules::schema::*;
 use crate::rules::{MatchResult, RuleViolation};
 use log::info;
-use oas3::spec::{ObjectOrReference, ObjectSchema, Operation, PathItem, Spec};
+use oas3::spec::{ObjectOrReference, ObjectSchema, Operation, PathItem, SchemaTypeSet, Spec};
 use std::collections::{BTreeMap, HashSet};
 
 /// Schema matcher for comparing OpenAPI schemas between versions
@@ -11,6 +11,7 @@ pub struct SchemaMatcher<'a> {
     current_schemas: &'a BTreeMap<String, ObjectOrReference<ObjectSchema>>,
     base_spec: &'a Spec,
     current_spec: &'a Spec,
+    include_description_changes: bool,
 }
 
 impl<'a> SchemaMatcher<'a> {
@@ -20,11 +21,22 @@ impl<'a> SchemaMatcher<'a> {
         base_spec: &'a Spec,
         current_spec: &'a Spec,
     ) -> Self {
+        Self::new_with_options(base_schemas, current_schemas, base_spec, current_spec, true)
+    }
+
+    pub fn new_with_options(
+        base_schemas: &'a BTreeMap<String, ObjectOrReference<ObjectSchema>>,
+        current_schemas: &'a BTreeMap<String, ObjectOrReference<ObjectSchema>>,
+        base_spec: &'a Spec,
+        current_spec: &'a Spec,
+        include_description_changes: bool,
+    ) -> Self {
         Self {
             base_schemas,
             current_schemas,
             base_spec,
             current_spec,
+            include_description_changes,
         }
     }
 
@@ -306,13 +318,11 @@ impl<'a> SchemaMatcher<'a> {
             None => return violations, // Skip if we can't resolve the reference
         };
 
-        // Use SchemaRule trait for detection
-        violations.extend(self.detect_schema_rule_violations::<TypeChangedRule>(
-            schema_name,
-            property_path,
-            Some(base_schema),
-            Some(current_schema),
-        ));
+        if let Some(type_violation) =
+            self.detect_type_changed(schema_name, property_path, base_schema, current_schema)
+        {
+            violations.push(type_violation);
+        }
 
         violations.extend(
             self.detect_schema_rule_violations::<RequiredPropertyAddedRule>(
@@ -381,14 +391,16 @@ impl<'a> SchemaMatcher<'a> {
         }
 
         // Use SchemaRule trait for all other detections
-        violations.extend(
-            self.detect_schema_rule_violations::<DescriptionChangedRule>(
-                schema_name,
-                property_path,
-                Some(base_schema),
-                Some(current_schema),
-            ),
-        );
+        if self.include_description_changes {
+            violations.extend(
+                self.detect_schema_rule_violations::<DescriptionChangedRule>(
+                    schema_name,
+                    property_path,
+                    Some(base_schema),
+                    Some(current_schema),
+                ),
+            );
+        }
 
         violations.extend(self.detect_schema_rule_violations::<EnumValuesAddedRule>(
             schema_name,
@@ -422,6 +434,84 @@ impl<'a> SchemaMatcher<'a> {
         // TODO: Implement proper array items comparison
 
         violations
+    }
+
+    fn detect_type_changed(
+        &self,
+        schema_name: &str,
+        property_path: &str,
+        base_schema: &ObjectSchema,
+        current_schema: &ObjectSchema,
+    ) -> Option<RuleViolation> {
+        let base_type = self.effective_schema_type(base_schema, self.base_spec);
+        let current_type = self.effective_schema_type(current_schema, self.current_spec);
+
+        if base_type == current_type {
+            return None;
+        }
+
+        Some(RuleViolation::new(Box::new(TypeChangedRule {
+            schema_name: schema_name.to_string(),
+            property_path: property_path.to_string(),
+            old_type: format!("{:?}", base_type),
+            new_type: format!("{:?}", current_type),
+        })))
+    }
+
+    fn effective_schema_type(
+        &self,
+        schema: &ObjectSchema,
+        spec: &Spec,
+    ) -> Option<SchemaTypeSet> {
+        self.effective_schema_type_with_depth(schema, spec, 0)
+    }
+
+    fn effective_schema_type_with_depth(
+        &self,
+        schema: &ObjectSchema,
+        spec: &Spec,
+        depth: usize,
+    ) -> Option<SchemaTypeSet> {
+        const MAX_TYPE_DEPTH: usize = 20;
+        if depth >= MAX_TYPE_DEPTH {
+            return None;
+        }
+
+        if let Some(schema_type) = schema.schema_type.clone() {
+            return Some(schema_type);
+        }
+
+        self.type_from_composition(&schema.all_of, spec, depth + 1)
+            .or_else(|| self.type_from_composition(&schema.one_of, spec, depth + 1))
+            .or_else(|| self.type_from_composition(&schema.any_of, spec, depth + 1))
+    }
+
+    fn type_from_composition(
+        &self,
+        schemas: &[ObjectOrReference<ObjectSchema>],
+        spec: &Spec,
+        depth: usize,
+    ) -> Option<SchemaTypeSet> {
+        let mut resolved_type: Option<SchemaTypeSet> = None;
+
+        for schema_ref in schemas {
+            let resolved = match self.resolve_schema_ref(schema_ref, spec) {
+                Some(schema) => schema,
+                None => continue,
+            };
+            let schema_type = match self.effective_schema_type_with_depth(resolved, spec, depth) {
+                Some(schema_type) => schema_type,
+                None => continue,
+            };
+
+            match &resolved_type {
+                None => resolved_type = Some(schema_type),
+                Some(existing) if *existing != schema_type => return None,
+                Some(_) => {}
+            }
+        }
+
+        resolved_type
     }
 }
 
