@@ -7,6 +7,7 @@
   * [1.4 Build from Source](#build-from-source)
 * [2 Usage](#usage)
   * [2.1 Try it in 30 seconds (sample specs + hosted report)](#try-it-in-30-seconds-sample-specs--hosted-report)
+  * [2.2 Browser playground (GitHub Pages)](#browser-playground-github-pages)
 * [3 For Developers](#for-developers)
   * [3.1 Creating a Release](#creating-a-release)
   * [3.2 CI/CD Workflows](#cicd-workflows)
@@ -110,6 +111,21 @@ repository: [click to open example report](https://html-preview.github.io/?url=h
 
 ![sample_report.png](docs/reports/sample_report_img.png)
 
+### Browser playground (GitHub Pages)
+
+Paste two OpenAPI specs in the browser and get the same HTML report as the CLI. Diffing runs locally via WebAssembly (nothing is uploaded).
+
+**Live site (after you enable Pages):** `https://sensiarion.github.io/apidrift/`.
+
+Local preview (needs [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) and Rust with the `wasm32-unknown-unknown` target; use rustup if your system `cargo` has no wasm std):
+
+```bash
+cd wasm
+wasm-pack build --target web --out-dir ../docs/playground/pkg --release --no-typescript --no-opt
+```
+
+Then serve `docs/playground` with any static file server and open the site (for example `npx --yes serve docs/playground`).
+
 ## For Developers
 
 ### Creating a Release
@@ -138,10 +154,10 @@ See [RELEASE.md](RELEASE.md) for detailed release instructions.
 ### CI/CD Workflows
 
 - **CI Workflow** (`.github/workflows/ci.yml`): Runs on every PR and merge to main
-    - Tests formatting with `cargo fmt`
-    - Runs linting with `cargo clippy`
-    - Builds the project
-    - Runs all tests
+    - Checks formatting with `cargo fmt`
+    - Builds the project and runs a **wasm32** smoke build (`apidrift-wasm`)
+    - Runs all tests  
+    - (Clippy is wired in the toolchain but the step is currently commented out in the workflow file.)
 
 - **Release Workflow** (`.github/workflows/release.yml`): Runs when a version tag is pushed
     - First runs all tests (must pass before building)

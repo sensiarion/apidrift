@@ -11,3 +11,6 @@
 # Ignore generated reports
 apidrift_report.html
 
+# Wasm bundle for the browser playground (built in CI or via wasm-pack)
+docs/playground/pkg/
+

@@ -49,6 +49,12 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
+      - name: Add wasm target (playground smoke build)
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build wasm library
+        run: cargo build -p apidrift-wasm --target wasm32-unknown-unknown --verbose
+
       - name: Run tests
         run: cargo test
 

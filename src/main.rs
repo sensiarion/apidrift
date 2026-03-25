@@ -1,10 +1,6 @@
-use apidrift::matcher;
-use apidrift::parse_error;
-use apidrift::render::html::HtmlRenderer;
+use apidrift::diff::{diff_openapi_to_html, OpenApiInputFormat};
 use clap::{Parser, ValueEnum};
 use env_logger::Env;
-use oas3::OpenApiV3Spec;
-use serde_path_to_error::deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -87,7 +83,15 @@ fn detect_format(path: &Path) -> Result<&'static str, String> {
     }
 }
 
-fn parse_openapi(path: &Path, verbose: bool) -> Result<OpenApiV3Spec, String> {
+fn openapi_format_from_path(path: &Path) -> Result<OpenApiInputFormat, String> {
+    match detect_format(path)? {
+        "json" => Ok(OpenApiInputFormat::Json),
+        "yaml" | "yml" => Ok(OpenApiInputFormat::Yaml),
+        _ => unreachable!(),
+    }
+}
+
+fn read_openapi_file(path: &Path, verbose: bool) -> Result<(String, OpenApiInputFormat), String> {
     if verbose {
         println!("📖 Reading OpenAPI spec from: {}", path.display());
     }
@@ -95,37 +99,19 @@ fn parse_openapi(path: &Path, verbose: bool) -> Result<OpenApiV3Spec, String> {
     let openapi_content = fs::read_to_string(path)
         .map_err(|err| format!("Failed to read file \"{}\". Error: {}", path.display(), err))?;
 
-    let format = detect_format(path)?;
+    let format = openapi_format_from_path(path)?;
 
     if verbose {
-        println!("   Detected format: {}", format.to_uppercase());
+        println!(
+            "   Detected format: {}",
+            match format {
+                OpenApiInputFormat::Json => "JSON",
+                OpenApiInputFormat::Yaml => "YAML",
+            }
+        );
     }
 
-    match format {
-        "json" => {
-            let mut deserializer = serde_json::Deserializer::from_str(&openapi_content);
-            let parsed: Result<OpenApiV3Spec, _> = deserialize(&mut deserializer);
-            parsed.map_err(|err| {
-                parse_error::format_openapi_parse_error(
-                    path,
-                    "json",
-                    &err.to_string(),
-                    &openapi_content,
-                    Some(&err.path().to_string()),
-                )
-            })
-        }
-        "yaml" => oas3::from_yaml(&openapi_content).map_err(|err| {
-            parse_error::format_openapi_parse_error(
-                path,
-                "yaml",
-                &err.to_string(),
-                &openapi_content,
-                None,
-            )
-        }),
-        _ => unreachable!(),
-    }
+    Ok((openapi_content, format))
 }
 
 fn open_in_browser(path: &Path, use_chrome: bool) {
@@ -214,96 +200,57 @@ fn main() {
         println!("🔄 Parsing OpenAPI specifications...\n");
     }
 
-    let base = match parse_openapi(&cli.base_spec, cli.verbose) {
-        Ok(spec) => spec,
+    let (base_content, base_format) = match read_openapi_file(&cli.base_spec, cli.verbose) {
+        Ok(v) => v,
         Err(err) => {
-            eprintln!("❌ Error parsing base specification: {}", err);
+            eprintln!("❌ Error reading base specification: {}", err);
             std::process::exit(1);
         }
     };
 
-    let current = match parse_openapi(&cli.current_spec, cli.verbose) {
-        Ok(spec) => spec,
+    let (current_content, current_format) = match read_openapi_file(&cli.current_spec, cli.verbose)
+    {
+        Ok(v) => v,
         Err(err) => {
-            eprintln!("❌ Error parsing current specification: {}", err);
+            eprintln!("❌ Error reading current specification: {}", err);
             std::process::exit(1);
         }
     };
 
     if cli.verbose {
-        println!("✅ Successfully parsed both specifications\n");
+        println!("✅ Successfully read both specifications\n");
     }
 
-    // Get schemas from both versions
-    let empty_schemas = Default::default();
-    let base_schemas = base
-        .components
-        .as_ref()
-        .map(|c| &c.schemas)
-        .unwrap_or(&empty_schemas);
-    let current_schemas = current
-        .components
-        .as_ref()
-        .map(|c| &c.schemas)
-        .unwrap_or(&empty_schemas);
+    println!("\n📄 Generating HTML report...");
+    let (html_output, stats) = match diff_openapi_to_html(
+        &base_content,
+        &current_content,
+        base_format,
+        current_format,
+        cli.include_descriptions,
+    ) {
+        Ok(v) => v,
+        Err(err) => {
+            eprintln!("❌ Error: {}", err);
+            std::process::exit(1);
+        }
+    };
 
-    if base_schemas.is_empty() {
+    if stats.base_schema_count == 0 {
         eprintln!("⚠️  Warning: Base specification has no schemas defined");
     }
-    if current_schemas.is_empty() {
+    if stats.current_schema_count == 0 {
         eprintln!("⚠️  Warning: Current specification has no schemas defined");
     }
 
-    // Create schema matcher and compare schemas
-    let schema_matcher = matcher::SchemaMatcher::new_with_options(
-        base_schemas,
-        current_schemas,
-        &base,
-        &current,
-        cli.include_descriptions,
-    );
-    let schema_results = schema_matcher.match_schemas();
-    let full_schema_infos = schema_matcher.build_full_schema_infos(&schema_results);
-
-    // TODO split schema and route matchers to diffenre files
-
-    // Create route matcher and compare routes
-    let route_matcher = matcher::RouteMatcher::new(&base, &current);
-    let route_results = route_matcher.match_routes_with_schema_violations(&schema_results);
-    let route_infos = route_matcher.get_all_routes_with_schemas();
-
-    // Display stats
     println!("=== Schema Comparison Stats ===\n");
-    println!("  Base schemas:         {}", base_schemas.len());
-    println!("  Current schemas:      {}", current_schemas.len());
-    println!("  Schemas with changes: {}", schema_results.len());
+    println!("  Base schemas:         {}", stats.base_schema_count);
+    println!("  Current schemas:      {}", stats.current_schema_count);
+    println!("  Schemas with changes: {}", stats.schemas_with_changes);
 
     println!("\n=== Route Comparison Stats ===\n");
-    println!("  Total routes:         {}", route_infos.len());
-    println!("  Routes with changes:  {}", route_results.len());
-
-    // Render to HTML
-    println!("\n📄 Generating HTML report...");
-    let renderer = match HtmlRenderer::new() {
-        Ok(r) => r,
-        Err(err) => {
-            eprintln!("❌ Error: Failed to create HTML renderer: {}", err);
-            std::process::exit(1);
-        }
-    };
-
-    let html_output = match renderer.render_with_routes(
-        &schema_results,
-        &route_results,
-        &route_infos,
-        &full_schema_infos,
-    ) {
-        Ok(html) => html,
-        Err(err) => {
-            eprintln!("❌ Error: Failed to render HTML: {}", err);
-            std::process::exit(1);
-        }
-    };
+    println!("  Total routes:         {}", stats.total_routes);
+    println!("  Routes with changes:  {}", stats.routes_with_changes);
 
     // Write to file
     if let Err(err) = fs::write(&cli.output, html_output) {

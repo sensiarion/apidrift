@@ -1,0 +1,19 @@
+[package]
+name = "apidrift-wasm"
+version = "0.1.4"
+edition = "2021"
+publish = false
+description = "WebAssembly bindings for apidrift (browser playground)"
+license = "Apache-2.0"
+repository = "https://github.com/sensiarion/apidrift"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+apidrift = { path = ".." }
+wasm-bindgen = "0.2.100"
+console_error_panic_hook = "0.1.7"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }

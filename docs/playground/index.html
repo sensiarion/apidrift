@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ApiDrift — OpenAPI diff in your browser</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a222c;
+      --border: #2d3a4a;
+      --text: #e8eef4;
+      --muted: #8b9bab;
+      --accent: #3db389;
+      --accent-dim: #2a8f6c;
+      --danger: #e85d5d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Source Sans 3", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 3rem;
+    }
+    h1 {
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+    }
+    .lede {
+      color: var(--muted);
+      max-width: 42rem;
+      margin: 0 0 1.75rem;
+      font-size: 1.05rem;
+    }
+    .grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 1fr 1fr;
+    }
+    @media (max-width: 800px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 280px;
+    }
+    .panel h2 {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0 0 0.75rem;
+    }
+    label.fmt {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 200px;
+      resize: vertical;
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 0.8rem;
+      background: #0b0f14;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.65rem;
+    }
+    textarea:focus {
+      outline: 2px solid var(--accent-dim);
+      outline-offset: 1px;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem 1.5rem;
+      margin: 1.25rem 0;
+    }
+    button.primary {
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 0.65rem 1.35rem;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(160deg, var(--accent), var(--accent-dim));
+      color: #04120c;
+      cursor: pointer;
+    }
+    button.primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.primary:not(:disabled):hover {
+      filter: brightness(1.08);
+    }
+    .status {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .status.err { color: var(--danger); }
+    .status.ok { color: var(--accent); }
+    footer {
+      margin-top: 2rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--accent); }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ApiDrift playground</h1>
+    <p class="lede">
+      Paste two OpenAPI 3 specs (JSON or YAML). The diff runs entirely in your browser — nothing is uploaded to a server.
+      After generating, the report opens in a new tab.
+    </p>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Base spec</h2>
+        <label class="fmt">
+          <span>Format</span>
+          <select id="baseFmt" aria-label="Base format">
+            <option value="json">JSON</option>
+            <option value="yaml">YAML</option>
+          </select>
+        </label>
+        <textarea id="base" placeholder='{ "openapi": "3.0.0", ... }' spellcheck="false"></textarea>
+      </div>
+      <div class="panel">
+        <h2>Current spec</h2>
+        <label class="fmt">
+          <span>Format</span>
+          <select id="currentFmt" aria-label="Current format">
+            <option value="json">JSON</option>
+            <option value="yaml">YAML</option>
+          </select>
+        </label>
+        <textarea id="current" placeholder='{ "openapi": "3.0.0", ... }' spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="row">
+      <button type="button" class="primary" id="run" disabled>Generate report</button>
+      <label class="fmt" style="margin:0">
+        <input type="checkbox" id="desc" />
+        Include description-only schema changes
+      </label>
+    </div>
+    <p class="status" id="status" role="status">Loading WebAssembly…</p>
+    <p class="hint" id="wasmHint" hidden>
+      If this stays stuck, build the bundle locally:
+      <code style="color:var(--text)">cd wasm && wasm-pack build --target web --out-dir ../docs/playground/pkg --release --no-typescript --no-opt</code>
+      (use a rustup-installed Rust with the <code style="color:var(--text)">wasm32-unknown-unknown</code> target).
+    </p>
+
+    <footer>
+      Open source:
+      <a href="https://github.com/sensiarion/apidrift" rel="noreferrer">apidrift on GitHub</a>
+      · CLI: <code>apidrift base.yaml current.yaml -o report.html</code>
+    </footer>
+  </div>
+
+  <script type="module">
+    const statusEl = document.getElementById("status");
+    const hintEl = document.getElementById("wasmHint");
+    const runBtn = document.getElementById("run");
+
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg;
+      statusEl.className = "status" + (cls ? " " + cls : "");
+    }
+
+    let generateReport;
+    try {
+      const mod = await import("./pkg/apidrift_wasm.js");
+      await mod.default();
+      generateReport = mod.generateReport;
+      setStatus("Ready.", "ok");
+      runBtn.disabled = false;
+    } catch (e) {
+      console.error(e);
+      setStatus("Could not load the Wasm module (missing ./pkg/ bundle?).", "err");
+      hintEl.hidden = false;
+      runBtn.disabled = true;
+    }
+
+    runBtn.addEventListener("click", () => {
+      const base = document.getElementById("base").value;
+      const current = document.getElementById("current").value;
+      const baseYaml = document.getElementById("baseFmt").value === "yaml";
+      const currentYaml = document.getElementById("currentFmt").value === "yaml";
+      const includeDesc = document.getElementById("desc").checked;
+
+      if (!base.trim() || !current.trim()) {
+        setStatus("Paste both base and current specs.", "err");
+        return;
+      }
+
+      try {
+        setStatus("Running diff…", "");
+        const html = generateReport(
+          base,
+          current,
+          baseYaml,
+          currentYaml,
+          includeDesc
+        );
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        setStatus("Report opened in a new tab.", "ok");
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : String(err), "err");
+      }
+    });
+  </script>
+</body>
+</html>
