@@ -5,7 +5,7 @@ resolver = "2"
 
 [package]
 name = "apidrift"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["sensiarion <izertmi@gmail.com>"]
 license = "Apache-2.0"
