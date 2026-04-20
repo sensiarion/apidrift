@@ -1,13 +1,15 @@
-use crate::rules::MatchResult;
+use crate::render::report_model::DiffReport;
 use std::error::Error;
 
 pub mod html;
+pub mod report_model;
+pub mod yaml_agent;
 
-/// Trait for rendering match results in different formats
-pub trait Renderer {
-    /// Render the match results and return the output as a string
-    fn render(&self, results: &[MatchResult]) -> Result<String, Box<dyn Error>>;
+/// Trait for rendering full diff reports in different formats
+pub trait DiffReportRenderer {
+    /// Render a diff report and return output as a string
+    fn render_report(&self, report: &DiffReport) -> Result<String, Box<dyn Error>>;
 
-    /// Get the file extension for this renderer
-    fn file_extension(&self) -> &str;
+    /// Get the file extension for this renderer output
+    fn file_extension(&self) -> &'static str;
 }

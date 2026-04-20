@@ -77,7 +77,7 @@ apidrift <BASE_SPEC> <CURRENT_SPEC> [OPTIONS]
 | `--open` | Open the report in the default browser |
 | `--chrome` | Prefer Chrome when opening (requires `--open`) |
 | `--include-descriptions` | Include description-only schema changes |
-| `-f, --format <FORMAT>` | Output format — `html` (default) |
+| `-f, --format <FORMAT>` | Output format — `html` (default), `yaml` (AI-agent oriented) |
 | `-v, --verbose` | Verbose logging |
 | `--vv` | Debug-level logging |
 
@@ -87,6 +87,72 @@ Both **JSON** and **YAML** OpenAPI 3.x specs are supported.
 
 ```bash
 apidrift examples/openapi/base.yaml examples/openapi/current.yaml -o report.html --open
+```
+
+### YAML output for AI agents
+
+`apidrift` can produce a structured YAML payload for machine parsing. It is intentionally **short**: it contains only the consolidated `grouped_changes` (plus summary `stats`), so an AI agent can ingest the full diff without overflowing context on large APIs.
+
+```bash
+apidrift examples/openapi/base.yaml examples/openapi/current.yaml \
+  --format yaml \
+  -o apidrift_report.yaml
+```
+
+When `--format yaml` is used with the default output path, `apidrift` writes to `apidrift_report.yaml`.
+`--open` is only applicable to HTML output.
+
+YAML shape:
+
+```text
+schema_version
+generator
+report
+  stats
+    total_changes
+    breaking_changes
+    warnings
+    non_breaking_changes
+  grouped_changes[]
+    change_key
+    description
+    change_level
+    change_level_class
+    schema_names[]
+    is_route_change
+    is_schema_grouped
+    changes[]
+    schema_name
+    route_names[]
+    route_schema_usage[]
+```
+
+Example YAML result (shortened):
+
+```yaml
+schema_version: 1
+generator: apidrift
+report:
+  stats:
+    total_changes: 7
+    breaking_changes: 2
+    warnings: 3
+    non_breaking_changes: 2
+  grouped_changes:
+    - change_key: "property_removed:breaking:email"
+      description: "Required Property Removed: email"
+      change_level: Breaking
+      change_level_class: breaking
+      details: []
+      schema_names: ["User"]
+      is_route_change: false
+      is_schema_grouped: false
+      changes: []
+      schema_name: null
+      route_names: ["GET /users/{id}"]
+      route_schema_usage:
+        - route_name: "GET /users/{id}"
+          usage_type: "output"
 ```
 
 The generated report contains:

@@ -4,7 +4,7 @@ pub mod parse_error;
 pub mod render;
 pub mod rules;
 
-pub use diff::{diff_openapi_to_html, DiffStats, OpenApiInputFormat};
+pub use diff::{diff_openapi, diff_openapi_to_html, DiffStats, OpenApiInputFormat, ReportFormat};
 
 /// Level of specific change
 #[derive(Debug, Clone, PartialEq)]

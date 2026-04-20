@@ -1,8 +1,11 @@
-//! Compare OpenAPI specs from strings and render HTML (CLI and WASM).
+//! Compare OpenAPI specs from strings and render reports.
 
 use crate::matcher;
 use crate::parse_error;
 use crate::render::html::HtmlRenderer;
+use crate::render::report_model::DiffReport;
+use crate::render::yaml_agent::YamlAgentRenderer;
+use crate::render::DiffReportRenderer;
 use oas3::OpenApiV3Spec;
 use serde_path_to_error::deserialize;
 use std::path::Path;
@@ -22,6 +25,13 @@ pub struct DiffStats {
     pub schemas_with_changes: usize,
     pub total_routes: usize,
     pub routes_with_changes: usize,
+}
+
+/// Output format for diff reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReportFormat {
+    Html,
+    YamlAgent,
 }
 
 fn parse_openapi_str(
@@ -50,13 +60,14 @@ fn parse_openapi_str(
     }
 }
 
-/// Compare two OpenAPI documents (JSON or YAML text) and return the HTML report plus stats.
-pub fn diff_openapi_to_html(
+/// Compare two OpenAPI documents and return the chosen report format plus stats.
+pub fn diff_openapi(
     base_content: &str,
     current_content: &str,
     base_format: OpenApiInputFormat,
     current_format: OpenApiInputFormat,
     include_descriptions: bool,
+    report_format: ReportFormat,
 ) -> Result<(String, DiffStats), String> {
     let base = parse_openapi_str(base_content, base_format, "base")?;
     let current = parse_openapi_str(current_content, current_format, "current")?;
@@ -95,14 +106,41 @@ pub fn diff_openapi_to_html(
         routes_with_changes: route_results.len(),
     };
 
-    let renderer = HtmlRenderer::new().map_err(|e| e.to_string())?;
-    let html = renderer
-        .render_with_routes(
-            &schema_results,
-            &route_results,
-            &route_infos,
-            &full_schema_infos,
-        )
-        .map_err(|e| e.to_string())?;
-    Ok((html, stats))
+    let report = DiffReport::from_match_results(
+        &schema_results,
+        &route_results,
+        &route_infos,
+        &full_schema_infos,
+    );
+
+    let output = match report_format {
+        ReportFormat::Html => {
+            let renderer = HtmlRenderer::new().map_err(|e| e.to_string())?;
+            renderer.render_report(&report).map_err(|e| e.to_string())?
+        }
+        ReportFormat::YamlAgent => {
+            let renderer = YamlAgentRenderer::new();
+            renderer.render_report(&report).map_err(|e| e.to_string())?
+        }
+    };
+
+    Ok((output, stats))
+}
+
+/// Compare two OpenAPI documents and return an HTML report plus stats.
+pub fn diff_openapi_to_html(
+    base_content: &str,
+    current_content: &str,
+    base_format: OpenApiInputFormat,
+    current_format: OpenApiInputFormat,
+    include_descriptions: bool,
+) -> Result<(String, DiffStats), String> {
+    diff_openapi(
+        base_content,
+        current_content,
+        base_format,
+        current_format,
+        include_descriptions,
+        ReportFormat::Html,
+    )
 }

@@ -20,6 +20,7 @@ oas3 = { version = "0.20.1", features = ["yaml-spec"] }
 serde_json = "1.0"
 tera = "1.20"
 serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
 log = "0.4.28"
 serde_path_to_error = "0.1.20"
 

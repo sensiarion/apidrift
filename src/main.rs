@@ -1,4 +1,4 @@
-use apidrift::diff::{diff_openapi_to_html, OpenApiInputFormat};
+use apidrift::diff::{diff_openapi, OpenApiInputFormat, ReportFormat};
 use clap::{Parser, ValueEnum};
 use env_logger::Env;
 use std::fs;
@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 pub enum OutputFormat {
     /// Generate an HTML report
     Html,
-    // Future: add more (e.g. Json, Markdown, etc.)
-    // Json,
+    /// Generate a YAML report for AI agents
+    Yaml,
 }
 
 #[derive(Parser)]
@@ -27,7 +27,7 @@ struct Cli {
     #[arg(value_name = "CURRENT_SPEC")]
     current_spec: PathBuf,
 
-    /// Output HTML report file path
+    /// Output report file path
     #[arg(
         short = 'o',
         long = "output",
@@ -221,13 +221,32 @@ fn main() {
         println!("✅ Successfully read both specifications\n");
     }
 
-    println!("\n📄 Generating HTML report...");
-    let (html_output, stats) = match diff_openapi_to_html(
+    let report_format = match cli.format {
+        OutputFormat::Html => ReportFormat::Html,
+        OutputFormat::Yaml => ReportFormat::YamlAgent,
+    };
+
+    let output_path = if cli.format == OutputFormat::Yaml
+        && cli.output == PathBuf::from("apidrift_report.html")
+    {
+        PathBuf::from("apidrift_report.yaml")
+    } else {
+        cli.output.clone()
+    };
+
+    let report_kind = match cli.format {
+        OutputFormat::Html => "HTML",
+        OutputFormat::Yaml => "YAML",
+    };
+
+    println!("\n📄 Generating {} report...", report_kind);
+    let (report_output, stats) = match diff_openapi(
         &base_content,
         &current_content,
         base_format,
         current_format,
         cli.include_descriptions,
+        report_format,
     ) {
         Ok(v) => v,
         Err(err) => {
@@ -253,15 +272,15 @@ fn main() {
     println!("  Routes with changes:  {}", stats.routes_with_changes);
 
     // Write to file
-    if let Err(err) = fs::write(&cli.output, html_output) {
-        eprintln!("❌ Error: Failed to write HTML file: {}", err);
+    if let Err(err) = fs::write(&output_path, report_output) {
+        eprintln!("❌ Error: Failed to write report file: {}", err);
         std::process::exit(1);
     }
 
     let absolute_path =
-        match std::env::current_dir().and_then(|cwd| cwd.join(&cli.output).canonicalize()) {
+        match std::env::current_dir().and_then(|cwd| cwd.join(&output_path).canonicalize()) {
             Ok(path) => path,
-            Err(_) => cli.output.clone(),
+            Err(_) => output_path.clone(),
         };
 
     println!("✅ Report generated: {}", absolute_path.display());
@@ -271,8 +290,9 @@ fn main() {
         println!("\n⚠️  Warning: --chrome flag requires --open flag to take effect");
     }
 
-    // Open in browser if --open flag is set
-    if cli.open {
+    if cli.open && cli.format == OutputFormat::Yaml {
+        println!("\n⚠️  Warning: --open is supported only for HTML reports");
+    } else if cli.open {
         println!();
         open_in_browser(&absolute_path, cli.chrome);
     }
