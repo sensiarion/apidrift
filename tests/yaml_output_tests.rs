@@ -21,10 +21,22 @@ fn yaml_agent_output_has_expected_shape() {
 
     // Top-level fields: stats, changes
     let top_stats = yaml.get("stats").unwrap();
-    assert!(top_stats.get("total").and_then(serde_yaml::Value::as_i64).is_some());
-    assert!(top_stats.get("breaking").and_then(serde_yaml::Value::as_i64).is_some());
-    assert!(top_stats.get("warning").and_then(serde_yaml::Value::as_i64).is_some());
-    assert!(top_stats.get("non_breaking").and_then(serde_yaml::Value::as_i64).is_some());
+    assert!(top_stats
+        .get("total")
+        .and_then(serde_yaml::Value::as_i64)
+        .is_some());
+    assert!(top_stats
+        .get("breaking")
+        .and_then(serde_yaml::Value::as_i64)
+        .is_some());
+    assert!(top_stats
+        .get("warning")
+        .and_then(serde_yaml::Value::as_i64)
+        .is_some());
+    assert!(top_stats
+        .get("non_breaking")
+        .and_then(serde_yaml::Value::as_i64)
+        .is_some());
 
     assert!(yaml.get("changes").is_some());
 
