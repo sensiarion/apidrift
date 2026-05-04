@@ -6,51 +6,44 @@ use std::error::Error;
 pub struct YamlAgentRenderer;
 
 #[derive(Serialize)]
-struct AgentYamlReport<'a> {
-    schema_version: u32,
-    generator: &'a str,
-    report: SlimReport<'a>,
+struct CompactReport {
+    stats: CompactStats,
+    changes: Vec<CompactChange>,
 }
 
 #[derive(Serialize)]
-struct SlimReport<'a> {
-    stats: &'a crate::render::report_model::Stats,
-    grouped_changes: Vec<YamlGroupedChange>,
+struct CompactStats {
+    total: usize,
+    breaking: usize,
+    warning: usize,
+    #[serde(rename = "non_breaking")]
+    non_breaking: usize,
 }
 
 #[derive(Serialize)]
-struct YamlGroupedChange {
-    change_key: String,
-    description: String,
-    change_level: String,
-    change_level_class: String,
-    details: Vec<YamlPropertyCard>,
-    schema_names: Vec<String>,
-    is_route_change: bool,
-    is_schema_grouped: bool,
-    changes: Vec<YamlChangeItem>,
-    schema_name: Option<String>,
-    route_names: Vec<String>,
-    route_schema_usage: Vec<YamlRouteSchemaUsage>,
+struct CompactChange {
+    desc: String,
+    level: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    schemas: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    routes: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    items: Vec<CompactChangeItem>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    details: Vec<CompactDetail>,
 }
 
 #[derive(Serialize)]
-struct YamlPropertyCard {
-    property_type: String,
-    content: String,
+struct CompactChangeItem {
+    desc: String,
+    level: String,
 }
 
 #[derive(Serialize)]
-struct YamlChangeItem {
-    description: String,
-    change_level: String,
-    change_level_class: String,
-}
-
-#[derive(Serialize)]
-struct YamlRouteSchemaUsage {
-    route_name: String,
-    usage_type: String,
+struct CompactDetail {
+    kind: String,
+    value: String,
 }
 
 impl YamlAgentRenderer {
@@ -61,58 +54,74 @@ impl YamlAgentRenderer {
 
 impl DiffReportRenderer for YamlAgentRenderer {
     fn render_report(&self, report: &DiffReport) -> Result<String, Box<dyn Error>> {
-        let payload = AgentYamlReport {
-            schema_version: 1,
-            generator: "apidrift",
-            report: SlimReport {
-                stats: &report.stats,
-                grouped_changes: report
-                    .grouped_changes
-                    .iter()
-                    .map(|gc| YamlGroupedChange {
-                        change_key: gc.change_key.clone(),
-                        description: gc.description.clone(),
-                        change_level: gc.change_level.clone(),
-                        change_level_class: gc.change_level_class.clone(),
-                        details: gc
-                            .details
-                            .iter()
-                            .map(|d| YamlPropertyCard {
-                                property_type: d.property_type.clone(),
-                                content: d.content.clone(),
-                            })
-                            .collect(),
-                        schema_names: gc.schema_names.clone(),
-                        is_route_change: gc.is_route_change,
-                        is_schema_grouped: gc.is_schema_grouped,
-                        changes: gc
-                            .changes
-                            .iter()
-                            .map(|c| YamlChangeItem {
-                                description: c.description.clone(),
-                                change_level: c.change_level.clone(),
-                                change_level_class: c.change_level_class.clone(),
-                            })
-                            .collect(),
-                        schema_name: gc.schema_name.clone(),
-                        route_names: gc.route_names.clone(),
-                        route_schema_usage: gc
-                            .route_schema_usage
-                            .iter()
-                            .map(|u| YamlRouteSchemaUsage {
-                                route_name: u.route_name.clone(),
-                                usage_type: u.usage_type.clone(),
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            },
-        };
-
+        let payload = build_compact_report(report);
         serde_yaml::to_string(&payload).map_err(|err| Box::new(err) as Box<dyn Error>)
     }
 
     fn file_extension(&self) -> &'static str {
         "yaml"
     }
+}
+
+fn build_compact_report(report: &DiffReport) -> CompactReport {
+    let stats = CompactStats {
+        total: report.stats.total_changes,
+        breaking: report.stats.breaking_changes,
+        warning: report.stats.warnings,
+        non_breaking: report.stats.non_breaking_changes,
+    };
+
+    let changes: Vec<CompactChange> = report
+        .grouped_changes
+        .iter()
+        .map(|gc| {
+            let level = gc.change_level_class.clone();
+
+            let items: Vec<CompactChangeItem> = gc
+                .changes
+                .iter()
+                .map(|c| CompactChangeItem {
+                    desc: c.description.clone(),
+                    level: c.change_level_class.clone(),
+                })
+                .collect();
+
+            let details: Vec<CompactDetail> = gc
+                .details
+                .iter()
+                .map(|d| CompactDetail {
+                    kind: d.property_type.clone(),
+                    value: d.content.clone(),
+                })
+                .collect();
+
+            let mut routes: Vec<String> = gc
+                .route_schema_usage
+                .iter()
+                .map(|u| u.route_name.clone())
+                .collect();
+            if gc.is_route_change {
+                routes.extend(gc.schema_names.clone());
+            }
+            routes.sort();
+            routes.dedup();
+
+            let schemas = if gc.is_route_change {
+                vec![]
+            } else {
+                gc.schema_names.clone()
+            };
+
+            CompactChange {
+                desc: gc.description.clone(),
+                level,
+                schemas,
+                routes,
+                items,
+                details,
+            }
+        })
+        .collect();
+
+    CompactReport { stats, changes }
 }

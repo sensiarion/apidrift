@@ -18,23 +18,31 @@ fn yaml_agent_output_has_expected_shape() {
     assert!(stats.schemas_with_changes > 0);
 
     let yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_output).unwrap();
-    assert_eq!(
-        yaml.get("schema_version")
-            .and_then(serde_yaml::Value::as_i64),
-        Some(1)
-    );
-    assert_eq!(
-        yaml.get("generator").and_then(serde_yaml::Value::as_str),
-        Some("apidrift")
-    );
 
-    let report = yaml.get("report").unwrap();
-    assert!(report.get("stats").is_some());
-    assert!(report.get("grouped_changes").is_some());
-    assert!(report.get("schemas").is_none());
-    assert!(report.get("routes").is_none());
-    assert!(report.get("full_schemas").is_none());
+    // Top-level fields: stats, changes
+    let top_stats = yaml.get("stats").unwrap();
+    assert!(top_stats.get("total").and_then(serde_yaml::Value::as_i64).is_some());
+    assert!(top_stats.get("breaking").and_then(serde_yaml::Value::as_i64).is_some());
+    assert!(top_stats.get("warning").and_then(serde_yaml::Value::as_i64).is_some());
+    assert!(top_stats.get("non_breaking").and_then(serde_yaml::Value::as_i64).is_some());
 
-    // YAML should be compact and emoji-free for agent consumption
-    assert!(!yaml_output.contains("emoji:"));
+    assert!(yaml.get("changes").is_some());
+
+    // Compact format: no verbose metadata, no emoji, no report wrapper
+    assert!(yaml.get("schema_version").is_none());
+    assert!(yaml.get("generator").is_none());
+    assert!(yaml.get("report").is_none());
+    assert!(!yaml_output.contains("emoji"));
+    assert!(!yaml_output.contains("change_level_class"));
+    assert!(!yaml_output.contains("change_key"));
+    assert!(!yaml_output.contains("is_route_change"));
+    assert!(!yaml_output.contains("is_schema_grouped"));
+    assert!(!yaml_output.contains("null"));
+
+    // Changes use compact field names
+    let changes = yaml.get("changes").unwrap().as_sequence().unwrap();
+    assert!(!changes.is_empty());
+    let first = &changes[0];
+    assert!(first.get("desc").is_some());
+    assert!(first.get("level").is_some());
 }

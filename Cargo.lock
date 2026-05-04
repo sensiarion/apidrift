@@ -72,7 +72,7 @@ dependencies = [
 
 [[package]]
 name = "apidrift"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "clap",
  "env_logger",
@@ -88,7 +88,7 @@ dependencies = [
 
 [[package]]
 name = "apidrift-wasm"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "apidrift",
  "console_error_panic_hook",
